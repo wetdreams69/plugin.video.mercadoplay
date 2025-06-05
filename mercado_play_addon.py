@@ -141,14 +141,28 @@ class MercadoPlayAddon:
             if not license_url or not license_key:
                 raise Exception("Datos DRM incompletos")
 
-            subtitle_list = []
-            for sub in subtitles:
+            for idx, sub in enumerate(subtitles):
                 lang = sub.get('lang', '')
                 url = sub.get('url', '')
-                label = sub.get('label', lang if lang else f'Subtítulo {len(subtitle_list)+1}')
                 
                 if lang and lang != "disabled" and url:
-                    subtitle_list.append((label, url))
+                    display_name = sub.get('label', lang.upper())
+                    
+                    if lang.lower() == 'es-mx':
+                        display_name = "Español (Latinoamérica)"
+                    elif lang.lower() == 'pt-br':
+                        display_name = "Portugués (Brasil)"
+                    elif lang.lower() == 'en-us':
+                        display_name = "English"
+                    elif lang.lower() == 'es-es':
+                        display_name = "Español (España)"
+                    
+                    subtitle_list.append({
+                        'index': idx,
+                        'name': display_name,
+                        'url': url,
+                        'lang': lang
+                    })
 
             license_headers = {
                 'User-Agent': USER_AGENT,
