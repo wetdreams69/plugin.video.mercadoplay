@@ -20,4 +20,4 @@ jobs:
         run: pip install kodi-addon-checker
 
       - name: Run kodi-addon-checker
-        run: kodi-addon-checker . | tee output.txt
+        run: kodi-addon-checker . --branch piers | tee output.txt
