@@ -159,10 +159,9 @@ class MercadoPlayAddon:
                         display_name = "Español (España)"
                     
                     subtitle_list.append({
-                        'index': idx,
-                        'name': display_name,
-                        'url': url,
-                        'lang': lang
+                        'label': display_name,
+                        'language': lang,
+                        'url': url
                     })
 
             license_headers = {
@@ -177,9 +176,8 @@ class MercadoPlayAddon:
             li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
             
             if subtitle_list:
-                li.setSubtitles([sub['url'] for sub in subtitle_list])
-                li.setProperty('subtitle_tracks', json.dumps(subtitle_list))
-            
+                 li.setSubtitles([sub['url'] for sub in subtitle_list])
+                
             if http_headers.get('x-dt-auth-token'):
                 license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
                 license_config = {
