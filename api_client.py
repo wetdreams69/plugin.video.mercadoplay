@@ -2,7 +2,7 @@ import requests
 import xbmc
 from bs4 import BeautifulSoup
 from urllib.parse import urlencode
-from .constants import USER_AGENT, BASE_URL, API_URL, REFERER_URL
+from constants import USER_AGENT, BASE_URL, API_URL, REFERER_URL
 
 class APIClient:
     def __init__(self, session, cache, user_agent=USER_AGENT, base_url=BASE_URL, api_url=API_URL, referer_url=REFERER_URL):
