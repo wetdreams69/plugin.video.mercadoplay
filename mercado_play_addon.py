@@ -139,29 +139,31 @@ class MercadoPlayAddon:
             if not license_url or not license_key:
                 raise Exception("Datos DRM incompletos")
 
-            # Preparar encabezados para la licencia
             license_headers = {
                 'User-Agent': USER_AGENT,
+                'Content-Type': 'application/octet-stream',
+                'Origin': BASE_URL,
                 'Referer': REFERER_URL,
-                'Origin': BASE_URL
             }
 
-            # Construir cadena de clave de licencia
-            if http_headers.get('x-dt-auth-token'):
-                license_headers['x-dt-auth-token'] = license_key
-                license_config = f"{license_url}|{urlencode(license_headers)}|R{{SSM}}|JBlicense"
-            elif http_headers.get('X-AxDRM-Message'):
-                license_headers['X-AxDRM-Message'] = license_key
-                license_config = f"{license_url}|{urlencode(license_headers)}|R{{SSM}}|"
-            else:
-                raise Exception("Tipo DRM no soportado")
-
-            # Configurar el elemento de reproducción
-            li = self.kodi.create_list_item(path=stream_url)
+            li = xbmcgui.ListItem(path=stream_url)
             li.setProperty('inputstream', 'inputstream.adaptive')
-            li.setProperty('inputstream.adaptive.manifest_type', 'mpd')
             li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
-            li.setProperty('inputstream.adaptive.license_key', license_config)
+            
+            if http_headers.get('x-dt-auth-token'):
+                license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
+                license_config = {
+                    'license_server_url': license_url.replace("specConform=true", ""),
+                    'headers': urlencode(license_headers),
+                    'post_data': 'R{SSM}',
+                    'response_data': 'JBlicense'
+                }
+                li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
+            elif http_headers.get('X-AxDRM-Message'):
+                license_headers['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
+                license_config = license_url + '|' + 'X-AxDRM-Message=' + license_key + '|R{SSM}|'
+                li.setProperty('inputstream.adaptive.license_key', license_config)
+            
             li.setMimeType('application/dash+xml')
             li.setContentLookup(False)
 
