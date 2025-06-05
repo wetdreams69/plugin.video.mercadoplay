@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+    <category label="Config">
+        <setting 
+            id="adult_content" 
+            type="bool"
+            label="+18"
+            default="false"
+        />
+    </category>
+</settings>
