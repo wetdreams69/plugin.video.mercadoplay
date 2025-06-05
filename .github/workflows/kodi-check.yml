@@ -19,5 +19,8 @@ jobs:
       - name: Install kodi-addon-checker
         run: pip install kodi-addon-checker
 
+      - name: ls
+        run: ls
+
       - name: Run kodi-addon-checker
         run: kodi-addon-checker .
