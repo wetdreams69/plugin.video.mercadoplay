@@ -1,0 +1,48 @@
+name: Auto-zip plugin on push
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  zip-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set repo name as env var
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Prepare zip without unwanted files
+        run: |
+          mkdir -p temp/${REPO_NAME}
+          rsync -av \
+            --exclude=".git" \
+            --exclude=".gitignore" \
+            --exclude="${REPO_NAME}.zip" \
+            --exclude=".github" \
+            --exclude="temp" \
+            ./ temp/${REPO_NAME}/
+          
+          cd temp
+          zip -r ../${REPO_NAME}.zip ${REPO_NAME} -x '*/.git/*' -x '*/temp/*'
+          cd ..
+          rm -rf temp
+
+      - name: Commit and push zip file
+        env:
+          REPO_NAME: ${{ env.REPO_NAME }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add ${REPO_NAME}.zip
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+
+          git commit -m "Update zip file on push"
+          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          git push origin HEAD:main
