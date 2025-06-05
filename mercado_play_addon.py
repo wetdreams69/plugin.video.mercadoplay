@@ -4,11 +4,11 @@ import requests
 import xbmc
 import xbmcgui
 import xbmcaddon
-from .constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT
-from .kodi_content_handler import KodiContentHandler
-from .api_client import APIClient
-from .cache_manager import CacheManager
-from .cookie_manager import CookieManager
+from constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT
+from kodi_content_handler import KodiContentHandler
+from api_client import APIClient
+from cache_manager import CacheManager
+from cookie_manager import CookieManager
 from xbmcvfs import translatePath
 
 class MercadoPlayAddon:
