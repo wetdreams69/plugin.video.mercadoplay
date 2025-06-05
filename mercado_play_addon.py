@@ -128,7 +128,7 @@ class MercadoPlayAddon:
 
             playback = player_data.get('playbackContext', {})
             sources = playback.get('sources', {})
-            subtitles = playback.get('subtitles', {})
+            subtitles = playback.get('subtitles', [])
             drm_data = playback.get('drm', {}).get('widevine', {})
 
             stream_url = sources.get('dash')
@@ -145,7 +145,7 @@ class MercadoPlayAddon:
             for sub in subtitles:
                 lang = sub.get('lang', '')
                 url = sub.get('url', '')
-                label = sub.get('label', f'Subtítulo {len(subtitle_list)+1}')
+                label = sub.get('label', lang if lang else f'Subtítulo {len(subtitle_list)+1}')
                 
                 if lang and lang != "disabled" and url:
                     subtitle_list.append((label, url))
@@ -160,6 +160,7 @@ class MercadoPlayAddon:
             li = xbmcgui.ListItem(path=stream_url)
             li.setProperty('inputstream', 'inputstream.adaptive')
             li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
+            
             if subtitle_list:
                 li.setSubtitles([url for _, url in subtitle_list])
                 li.setProperty('subtitle_tracks', json.dumps(subtitle_list))
