@@ -127,6 +127,7 @@ class MercadoPlayAddon:
 
             playback = player_data.get('playbackContext', {})
             sources = playback.get('sources', {})
+            subtitles = playback.get('subtitles', {})
             drm_data = playback.get('drm', {}).get('widevine', {})
 
             stream_url = sources.get('dash')
@@ -139,6 +140,15 @@ class MercadoPlayAddon:
             if not license_url or not license_key:
                 raise Exception("Datos DRM incompletos")
 
+            subtitle_list = []
+            for sub in subtitles:
+                lang = sub.get('lang', '')
+                url = sub.get('url', '')
+                label = sub.get('label', f'Subtítulo {len(subtitle_list)+1}')
+                
+                if lang and lang != "disabled" and url:
+                    subtitle_list.append((label, url))
+
             license_headers = {
                 'User-Agent': USER_AGENT,
                 'Content-Type': 'application/octet-stream',
@@ -149,6 +159,9 @@ class MercadoPlayAddon:
             li = xbmcgui.ListItem(path=stream_url)
             li.setProperty('inputstream', 'inputstream.adaptive')
             li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
+            if subtitle_list:
+                li.setSubtitles([url for _, url in subtitle_list])
+                li.setProperty('subtitle_tracks', json.dumps(subtitle_list))
             
             if http_headers.get('x-dt-auth-token'):
                 license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
