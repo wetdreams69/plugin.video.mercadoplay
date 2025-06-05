@@ -176,7 +176,7 @@ class MercadoPlayAddon:
             li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
             
             if subtitle_list:
-                 li.setSubtitles([sub['url'] for sub in subtitle_list])
+                li.setSubtitles([sub['url'] for sub in subtitle_list])
                 
             if http_headers.get('x-dt-auth-token'):
                 license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
