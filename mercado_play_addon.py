@@ -141,6 +141,7 @@ class MercadoPlayAddon:
             if not license_url or not license_key:
                 raise Exception("Datos DRM incompletos")
 
+            subtitle_list = []
             for idx, sub in enumerate(subtitles):
                 lang = sub.get('lang', '')
                 url = sub.get('url', '')
