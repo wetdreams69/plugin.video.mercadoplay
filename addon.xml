@@ -17,6 +17,7 @@
         <summary lang="es">Streaming de películas y series desde MercadoLibre</summary>
         <description lang="es">Addon no oficial para ver contenido desde play.mercadolibre.com.ar con soporte para DRM Widevine</description>
         <platform>all</platform>
+        <icon>icon.png</icon>
         <language>es</language>
         <license>MIT</license>
         <source>https://github.com/wetdreams69/plugin.video.mercadoplay</source>
