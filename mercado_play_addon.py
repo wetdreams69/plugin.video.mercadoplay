@@ -18,6 +18,9 @@ class MercadoPlayAddon:
         self.addon_handle = addon_handle
         self.kodi = KodiContentHandler(addon_handle)
         self.cache = CacheManager()
+
+        # Acceso a los ajustes del addon
+        self.addon = xbmcaddon.Addon()
         
         # Configurar sistema de cookies
         addon_profile = translatePath(xbmcaddon.Addon().getAddonInfo('profile'))
@@ -124,7 +127,13 @@ class MercadoPlayAddon:
             
             player_data = data.get('components', {}).get('player', {})
             if player_data.get('restricted') == True:
-                raise Exception("Debe ser +18 para ver este contenido")
+                if not self.addon.getSettingBool('adult_content'):
+                    self.kodi.show_notification(
+                        "Contenido restringido",
+                        "Habilita +18 en los ajustes para ver este contenido",
+                        xbmcgui.NOTIFICATION_WARNING
+                    )
+                    return
 
             playback = player_data.get('playbackContext', {})
             sources = playback.get('sources', {})
