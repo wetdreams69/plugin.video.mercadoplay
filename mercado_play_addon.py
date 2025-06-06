@@ -18,18 +18,16 @@ class MercadoPlayAddon:
         self.addon_handle = addon_handle
         self.kodi = KodiContentHandler(addon_handle)
         self.cache = CacheManager()
-
-        # Acceso a los ajustes del addon
         self.addon = xbmcaddon.Addon()
-        
+
         # Configurar sistema de cookies
-        addon_profile = translatePath(xbmcaddon.Addon().getAddonInfo('profile'))
+        addon_profile = translatePath(self.addon.getAddonInfo('profile'))
         self.cookie_manager = CookieManager(addon_profile)
-        
+
         # Configurar sesión HTTP
         self.session = requests.Session()
         self.session.cookies = self.cookie_manager.get_jar()
-        
+
         # Configurar cliente API
         self.api_client = APIClient(
             session=self.session,
@@ -49,70 +47,115 @@ class MercadoPlayAddon:
 
     def list_category_content(self, category_str, offset=0, limit=24):
         data = self.api_client.fetch_category_data(category_str, offset, limit)
-        
         if not data or "components" not in data:
             self.kodi.show_notification("Sin contenido", f"No hay resultados para {category_str}")
             self.kodi.end_directory()
             return
 
         results = []
-        
+
         for component in data.get("components", []):
-            if component.get("type") != "media-card":
-                continue
+            component_type = component.get("type")
+            if component_type == "media-card":
+                media_card = component.get("props", {})
+                parsed = {
+                    "title": media_card.get("linkTo", {}).get("state", {}).get("metadata", {}).get("title", "").replace(" - Mercado Play", ""),
+                    "url": media_card.get("linkTo", {}).get("pathname", ""),
+                    "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
+                    "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", ""),
+                    "is_folder": False
+                }
+                results.append(parsed)
+            elif component_type == "media-rail":
+                title = component.get("props", {}).get("title", "Sin título")
+                items = component.get("props", {}).get("items", [])
+                for item in items:
+                    series_url = item.get("linkTo", {}).get("pathname", "")
+                    image = item.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", "")
+                    description = item.get("description", {}).get("overview", {}).get("props", {}).get("label", "")
+                    results.append({
+                        "title": title,
+                        "url": series_url,
+                        "image": image,
+                        "description": description,
+                        "is_folder": True
+                    })
 
-            media_card = component.get("props",{})
-            parsed = {
-                "title": media_card.get("linkTo", {}).get("state", {}).get("metadata", {}).get("title", "").replace(" - Mercado Play", ""),
-                "url": media_card.get("linkTo", {}).get("pathname", ""),
-                "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
-                "subtitle": media_card.get("description", {}).get("subtitle", ""),
-                "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", "")
-            }
-            results.append(parsed)
-
-        # Mostrar en Kodi
         for item in results:
             try:
                 title = item.get("title", "Sin título")
                 link = item.get("url", "")
-                image = item.get("image", "")
-                description = item.get("description","")
-
                 if not link:
                     continue
-
                 video_id = os.path.basename(urllib.parse.urlparse(link).path).split('?')[0]
-
-                if image and not image.startswith('http'):
-                    image = f'https:{image}'
-
-                url = self.kodi.build_url({'action': 'show_details', 'id': video_id})
+                image = item.get("image", "")
+                if image and not image.startswith("http"):
+                    image = f"https:{image}"
+                action = 'list_seasons' if item.get('is_folder') else 'show_details'
+                url = self.kodi.build_url({'action': action, 'id': video_id})
                 li = self.kodi.create_list_item(title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
-                li.setInfo('video', {'title': title, 'plot': description})
-                li.setProperty('IsPlayable', 'true')
-                self.kodi.add_directory_item(url, li, is_folder=False)
+                li.setInfo('video', {'title': title, 'plot': item.get("description", "")})
+                li.setProperty('IsPlayable', 'false' if item.get('is_folder') else 'true')
+                self.kodi.add_directory_item(url, li, is_folder=item.get('is_folder'))
             except Exception as e:
                 xbmc.log(f"[ERROR] Procesamiento de ítem fallido: {str(e)}", xbmc.LOGERROR)
 
-        # Botón "Ver más" si hay nextPage
         next_page = data.get("nextPage")
         if next_page:
             next_offset = next_page.get("offset", offset + limit)
             next_limit = next_page.get("limit", limit)
-
             url = self.kodi.build_url({
                 'action': 'list_content',
                 'category': category_str,
                 'offset': next_offset,
                 'limit': next_limit
             })
-
             li = self.kodi.create_list_item(">> Ver más")
-            li.setArt({'thumb': '', 'icon': '', 'poster': ''})
-            li.setInfo('video', {'title': 'Ver más contenido'})
             self.kodi.add_directory_item(url, li)
+
+        self.kodi.end_directory()
+
+    def list_seasons(self, series_id):
+        data = self.api_client.fetch_series_details(series_id)
+        if not data or 'seasons' not in data:
+            self.kodi.show_notification("Sin temporadas", "No se encontraron temporadas disponibles")
+            self.kodi.end_directory()
+            return
+
+        for season in sorted(data['seasons'], key=lambda s: s.get('number', 0)):
+            season_id = season.get('id')
+            title = season.get('title', f"Temporada {season.get('number', '')}")
+            thumb = season.get('image', '')
+            url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
+            li = self.kodi.create_list_item(title)
+            li.setArt({'thumb': thumb})
+            li.setProperty('IsPlayable', 'false')
+            self.kodi.add_directory_item(url, li, is_folder=True)
+
+        self.kodi.end_directory()
+
+    def list_episodes(self, season_id):
+        data = self.api_client.fetch_season_details(season_id)
+        if not data or 'episodes' not in data:
+            self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles")
+            self.kodi.end_directory()
+            return
+
+        for episode in data['episodes']:
+            episode_url = episode.get('url', '')
+            if not episode_url:
+                continue
+            title = episode.get('title', f"Episodio {episode.get('number', '')}")
+            description = episode.get('description', '')
+            thumb = episode.get('image', '')
+            video_id = os.path.basename(urllib.parse.urlparse(episode_url).path).split('?')[0]
+            url = self.kodi.build_url({'action': 'show_details', 'id': video_id})
+            li = self.kodi.create_list_item(title)
+            li.setArt({'thumb': thumb, 'icon': thumb, 'poster': thumb})
+            li.setInfo('video', {'title': title, 'plot': description})
+            li.setProperty('IsPlayable', 'true')
+            self.kodi.add_directory_item(url, li, is_folder=False)
 
         self.kodi.end_directory()
 
@@ -124,16 +167,11 @@ class MercadoPlayAddon:
             data = self.api_client.fetch_video_details(video_id)
             if not data:
                 raise Exception("Datos del video no disponibles")
-            
+
             player_data = data.get('components', {}).get('player', {})
-            if player_data.get('restricted') == True:
-                if not self.addon.getSettingBool('adult_content'):
-                    self.kodi.show_notification(
-                        "Contenido restringido",
-                        "Habilita +18 en los ajustes para ver este contenido",
-                        xbmcgui.NOTIFICATION_WARNING
-                    )
-                    return
+            if player_data.get('restricted') and not self.addon.getSettingBool('adult_content'):
+                self.kodi.show_notification("Contenido restringido", "Habilita +18 en los ajustes para ver este contenido", xbmcgui.NOTIFICATION_WARNING)
+                return
 
             playback = player_data.get('playbackContext', {})
             sources = playback.get('sources', {})
@@ -144,20 +182,18 @@ class MercadoPlayAddon:
             license_url = drm_data.get('serverUrl')
             http_headers = drm_data.get('httpRequestHeaders', {})
             license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
-    
+
             if not stream_url:
                 raise Exception("URL del stream no disponible")
             if not license_url or not license_key:
                 raise Exception("Datos DRM incompletos")
 
             subtitle_list = []
-            for idx, sub in enumerate(subtitles):
+            for sub in subtitles:
                 lang = sub.get('lang', '')
                 url = sub.get('url', '')
-                
                 if lang and lang != "disabled" and url:
                     display_name = sub.get('label', lang.upper())
-                    
                     if lang.lower() == 'es-mx':
                         display_name = "Español (Latinoamérica)"
                     elif lang.lower() == 'pt-br':
@@ -166,7 +202,6 @@ class MercadoPlayAddon:
                         display_name = "English"
                     elif lang.lower() == 'es-es':
                         display_name = "Español (España)"
-                    
                     subtitle_list.append({
                         'label': display_name,
                         'language': lang,
@@ -183,10 +218,9 @@ class MercadoPlayAddon:
             li = xbmcgui.ListItem(path=stream_url)
             li.setProperty('inputstream', 'inputstream.adaptive')
             li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
-            
             if subtitle_list:
                 li.setSubtitles([sub['url'] for sub in subtitle_list])
-                
+
             if http_headers.get('x-dt-auth-token'):
                 license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
                 license_config = {
@@ -195,16 +229,14 @@ class MercadoPlayAddon:
                     'post_data': 'R{SSM}',
                     'response_data': 'JBlicense'
                 }
-                li.setProperty('inputstream.adaptive.license_key', '|'.join(list(license_config.values())))
+                li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
             elif http_headers.get('X-AxDRM-Message'):
                 license_headers['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
                 license_config = license_url + '|' + 'X-AxDRM-Message=' + license_key + '|R{SSM}|'
                 li.setProperty('inputstream.adaptive.license_key', license_config)
-            
+
             li.setMimeType('application/dash+xml')
             li.setContentLookup(False)
-
-            # Iniciar reproducción
             self.kodi.resolve_url(True, li)
 
         except Exception as e:
@@ -223,6 +255,12 @@ class MercadoPlayAddon:
             offset = int(params.get('offset', 0))
             limit = int(params.get('limit', 24))
             self.list_category_content(category, offset, limit)
+        elif action == 'list_seasons':
+            series_id = params.get('id')
+            self.list_seasons(series_id)
+        elif action == 'list_episodes':
+            season_id = params.get('id')
+            self.list_episodes(season_id)
         elif action == 'show_details':
             video_id = params.get('id')
             self.play_video(video_id)
@@ -232,5 +270,4 @@ class MercadoPlayAddon:
     def run(self, argv):
         paramstring = argv[2][1:] if len(argv) > 2 else None
         self.router(paramstring)
-        # Guardar cookies al finalizar
         self.cookie_manager.save_cookies()
