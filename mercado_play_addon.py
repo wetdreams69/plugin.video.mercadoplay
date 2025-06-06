@@ -195,7 +195,7 @@ class MercadoPlayAddon:
                     'post_data': 'R{SSM}',
                     'response_data': 'JBlicense'
                 }
-                li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
+                li.setProperty('inputstream.adaptive.license_key', '|'.join(list(license_config.values())))
             elif http_headers.get('X-AxDRM-Message'):
                 license_headers['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
                 license_config = license_url + '|' + 'X-AxDRM-Message=' + license_key + '|R{SSM}|'

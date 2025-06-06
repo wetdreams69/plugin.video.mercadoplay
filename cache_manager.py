@@ -62,7 +62,7 @@ class CacheManager:
         cache = self._load_cache()
         
         if len(cache) >= self.max_size:
-            oldest_key = min(cache.keys(), key=lambda k: cache[k]['timestamp'])
+            oldest_key = min(list(cache.keys()), key=lambda k: cache[k]['timestamp'])
             del cache[oldest_key]
         
         cache[key] = {'timestamp': time.time(), 'data': data}

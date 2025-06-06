@@ -4,7 +4,7 @@
        version="1.0.0"
        provider-name="wetdreams69">
     <requires>
-        <import addon="xbmc.python" version="3.0.0"/>
+        <import addon="xbmc.python" version="3.0.1"/>
         <import addon="script.module.requests" version="2.18.4"/>
         <import addon="inputstream.adaptive" version="2.0.12"/>
         <import addon="script.module.beautifulsoup4" version="4.5.3"/>
@@ -17,7 +17,9 @@
         <summary lang="es">Streaming de películas y series desde MercadoLibre</summary>
         <description lang="es">Addon no oficial para ver contenido desde play.mercadolibre.com.ar con soporte para DRM Widevine</description>
         <platform>all</platform>
-        <icon>icon.png</icon>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
         <language>es</language>
         <license>MIT</license>
         <source>https://github.com/wetdreams69/plugin.video.mercadoplay</source>
