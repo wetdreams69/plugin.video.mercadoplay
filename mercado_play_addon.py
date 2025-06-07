@@ -59,27 +59,24 @@ class MercadoPlayAddon:
             if component_type == "media-card":
                 media_card = component.get("props", {})
                 link_data = media_card.get("linkTo", {}).get("state", {}).get("metadata", {})
-                
-                # Identificar series por tipo de contenido o patrón en URL
-                content_type = link_data.get("contentType", "").lower()
-                is_series = content_type == "serie" or "/serie/" in media_card.get("linkTo", {}).get("pathname", "").lower()
-                
+
+                is_series = self.is_series(link_data)
+
                 parsed = {
                     "title": link_data.get("title", "").replace(" - Mercado Play", ""),
                     "url": media_card.get("linkTo", {}).get("pathname", ""),
                     "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
                     "description": link_data.get("description", ""),
-                    "is_folder": is_series  # True solo para series
+                    "is_folder": is_series
                 }
                 results.append(parsed)
-                
+
             elif component_type == "media-rail":
                 items = component.get("props", {}).get("items", [])
                 for item in items:
                     item_data = item.get("linkTo", {}).get("state", {}).get("metadata", {})
-                    content_type = item_data.get("contentType", "").lower()
-                    is_series = content_type == "serie" or "/serie/" in item.get("linkTo", {}).get("pathname", "").lower()
-                    
+                    is_series = self.is_series(item_data)
+
                     results.append({
                         "title": item_data.get("title", ""),
                         "url": item.get("linkTo", {}).get("pathname", ""),
@@ -124,30 +121,28 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
     def list_seasons(self, series_id):
-        data = self.api_client.fetch_video_details(series_id)  # Usar fetch_video_details
-        
-        # Buscar selector de temporadas en la estructura del JSON
+        data = self.api_client.fetch_video_details(series_id)
+
         seasons_selector = data.get("components", {}).get("seasons-selector", {})
-        if not seasons_selector:
-            self.kodi.show_notification("Sin temporadas", "No se encontraron temporadas disponibles")
+        tabs = seasons_selector.get("selector", {}).get("props", {}).get("tabs", [])
+        seasons_metadata = seasons_selector.get("seasonsMetadata", [])
+
+        if not tabs:
+            self.kodi.show_notification("Sin temporadas", "Este contenido no tiene temporadas", xbmcgui.NOTIFICATION_WARNING)
             self.kodi.end_directory()
             return
 
-        seasons_metadata = seasons_selector.get("seasonsMetadata", [])
-        tabs = seasons_selector.get("selector", {}).get("props", {}).get("tabs", [])
-        
-        # Mapear metadatos por ID para fácil acceso
         metadata_map = {s['id']: s for s in seasons_metadata}
-        
+
         for tab in tabs:
             season_id = tab.get("value")
             season_number = tab.get("label", "0")
             metadata = metadata_map.get(season_id, {})
-            
+
             title = f"Temporada {season_number}"
             if "episodesCount" in metadata:
                 title += f" ({metadata['episodesCount']} episodios)"
-            
+
             url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
             li = self.kodi.create_list_item(title)
             li.setProperty('IsPlayable', 'false')
@@ -155,43 +150,44 @@ class MercadoPlayAddon:
 
         self.kodi.end_directory()
 
+
     def list_episodes(self, season_id):
-        # Obtener detalles de la temporada (usando el ID de la temporada)
         data = self.api_client.fetch_video_details(season_id)
-        
+
         seasons_selector = data.get("components", {}).get("seasons-selector", {})
         if not seasons_selector:
             self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles")
             self.kodi.end_directory()
             return
 
-        # Extraer episodios del carrusel
         carousel = seasons_selector.get("carousel", {})
         episodes = carousel.get("props", {}).get("components", [])
-        
+
+        if not episodes:
+            self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
+            self.kodi.end_directory()
+            return
+
         for episode in episodes:
             if episode.get("type") != "compact-media-card":
                 continue
-                
+
             props = episode.get("props", {})
             episode_id = props.get("contentId", "")
             header = props.get("header", {}).get("default", {})
-            
-            # Extraer título del episodio
+
             title = "Episodio"
             if header.get("bottomLeftItems"):
                 title_item = header["bottomLeftItems"][0]
                 if title_item.get("type") == "typography":
                     title = title_item.get("props", {}).get("label", title)
-            
-            # Extraer imagen
+
             image = ""
             if header.get("background", {}).get("props", {}).get("url", ""):
                 image = header["background"]["props"]["url"]
                 if not image.startswith("http"):
                     image = f"https:{image}"
-            
-            # Construir ítem
+
             url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
             li = self.kodi.create_list_item(title)
             li.setArt({'thumb': image, 'icon': image, 'poster': image})
@@ -201,24 +197,18 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
     def is_series(self, metadata):
-        """Determina si el contenido es una serie basado en metadatos"""
         if not metadata:
             return False
-            
-        # Verificar por tipo de contenido
+
+        # 1. Tipo de contenido explícito
         if metadata.get("contentType", "").lower() == "serie":
             return True
-            
-        # Verificar por patrón en URL
-        url = metadata.get("url", "") or metadata.get("link", "") or ""
-        if "/serie/" in url.lower():
-            return True
-            
-        # Verificar por estructura en el título
+
+        # 2. Heurística por título (ej: "T1:E3", "Temporada 1", etc.)
         title = metadata.get("title", "").lower()
-        if "temporada" in title or "t" in title and "e" in title:
+        if "temporada" in title or ("t" in title and "e" in title and ":" in title):
             return True
-            
+
         return False
 
     def play_video(self, video_id):
