@@ -39,6 +39,7 @@ class MercadoPlayAddon:
         )
 
     def list_categories(self):
+        xbmc.log("[DEBUG] Entrando en list_categories", xbmc.LOGERROR)
         for category in Categoria:
             url = self.kodi.build_url({'action': 'list_content', 'category': category.value})
             li = self.kodi.create_list_item(category.name.title())
@@ -46,75 +47,87 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
     def list_category_content(self, category_str, offset=0, limit=24):
+        xbmc.log(f"[DEBUG] Entrando en list_category_content con category={category_str}", xbmc.LOGERROR)
         data = self.api_client.fetch_category_data(category_str, offset, limit)
-        
         if not data or "components" not in data:
+            xbmc.log("[DEBUG] No se encontraron componentes en list_category_content", xbmc.LOGERROR)
             self.kodi.show_notification("Sin contenido", f"No hay resultados para {category_str}")
             self.kodi.end_directory()
             return
 
         results = []
-        
+
         for component in data.get("components", []):
-            if component.get("type") != "media-card":
-                continue
+            component_type = component.get("type")
+            if component_type == "media-card":
+                xbmc.log("[DEBUG] Procesando componente tipo media-card", xbmc.LOGERROR)
+                media_card = component.get("props", {})
+                link_data = media_card.get("linkTo", {}).get("state", {}).get("metadata", {})
 
-            media_card = component.get("props",{})
-            parsed = {
-                "title": media_card.get("linkTo", {}).get("state", {}).get("metadata", {}).get("title", "").replace(" - Mercado Play", ""),
-                "url": media_card.get("linkTo", {}).get("pathname", ""),
-                "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
-                "subtitle": media_card.get("description", {}).get("subtitle", ""),
-                "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", "")
-            }
-            results.append(parsed)
+                is_series = self.is_series(link_data)
 
-        # Mostrar en Kodi
+                parsed = {
+                    "title": link_data.get("title", "").replace(" - Mercado Play", ""),
+                    "url": media_card.get("linkTo", {}).get("pathname", ""),
+                    "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
+                    "description": link_data.get("description", ""),
+                    "is_folder": is_series
+                }
+                results.append(parsed)
+
+            elif component_type == "media-rail":
+                xbmc.log("[DEBUG] Procesando componente tipo media-rail", xbmc.LOGERROR)
+                items = component.get("props", {}).get("items", [])
+                for item in items:
+                    item_data = item.get("linkTo", {}).get("state", {}).get("metadata", {})
+                    is_series = self.is_series(item_data)
+
+                    results.append({
+                        "title": item_data.get("title", ""),
+                        "url": item.get("linkTo", {}).get("pathname", ""),
+                        "image": item.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
+                        "description": item_data.get("description", ""),
+                        "is_folder": is_series
+                    })
+
         for item in results:
             try:
                 title = item.get("title", "Sin título")
                 link = item.get("url", "")
-                image = item.get("image", "")
-                description = item.get("description","")
-
                 if not link:
                     continue
-
                 video_id = os.path.basename(urllib.parse.urlparse(link).path).split('?')[0]
-
-                if image and not image.startswith('http'):
-                    image = f'https:{image}'
-
-                url = self.kodi.build_url({'action': 'show_details', 'id': video_id})
+                image = item.get("image", "")
+                if image and not image.startswith("http"):
+                    image = f"https:{image}"
+                action = 'list_seasons' if item.get('is_folder') else 'show_details'
+                xbmc.log(f"[DEBUG] Agregando item: {title}, acción: {action}, video_id: {video_id}", xbmc.LOGERROR)
+                url = self.kodi.build_url({'action': action, 'id': video_id})
                 li = self.kodi.create_list_item(title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
-                li.setInfo('video', {'title': title, 'plot': description})
-                li.setProperty('IsPlayable', 'true')
-                self.kodi.add_directory_item(url, li, is_folder=False)
+                li.setInfo('video', {'title': title, 'plot': item.get("description", "")})
+                li.setProperty('IsPlayable', 'false' if item.get('is_folder') else 'true')
+                self.kodi.add_directory_item(url, li, is_folder=item.get('is_folder'))
             except Exception as e:
                 xbmc.log(f"[ERROR] Procesamiento de ítem fallido: {str(e)}", xbmc.LOGERROR)
 
-        # Botón "Ver más" si hay nextPage
         next_page = data.get("nextPage")
         if next_page:
             next_offset = next_page.get("offset", offset + limit)
             next_limit = next_page.get("limit", limit)
-
             url = self.kodi.build_url({
                 'action': 'list_content',
                 'category': category_str,
                 'offset': next_offset,
                 'limit': next_limit
             })
-
             li = self.kodi.create_list_item(">> Ver más")
-            li.setArt({'thumb': '', 'icon': '', 'poster': ''})
-            li.setInfo('video', {'title': 'Ver más contenido'})
             self.kodi.add_directory_item(url, li)
 
-        self.kodi.end_directory()
 
+    
     def list_seasons(self, series_id):
+        xbmc.log(f"[DEBUG] Entrando en list_seasons con series_id={series_id}", xbmc.LOGERROR)
         data = self.api_client.fetch_video_details(series_id)
 
         seasons_selector = data.get("components", {}).get("seasons-selector", {})
@@ -122,6 +135,7 @@ class MercadoPlayAddon:
         seasons_metadata = seasons_selector.get("seasonsMetadata", [])
 
         if not tabs:
+            xbmc.log("[DEBUG] No se encontraron tabs de temporadas", xbmc.LOGERROR)
             self.kodi.show_notification("Sin temporadas", "Este contenido no tiene temporadas", xbmcgui.NOTIFICATION_WARNING)
             self.kodi.end_directory()
             return
@@ -137,6 +151,7 @@ class MercadoPlayAddon:
             if "episodesCount" in metadata:
                 title += f" ({metadata['episodesCount']} episodios)"
 
+            xbmc.log(f"[DEBUG] Agregando temporada: {title}, id: {season_id}", xbmc.LOGERROR)
             url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
             li = self.kodi.create_list_item(title)
             li.setProperty('IsPlayable', 'false')
@@ -144,8 +159,8 @@ class MercadoPlayAddon:
 
         self.kodi.end_directory()
 
-
     def list_episodes(self, season_id):
+        xbmc.log(f"[DEBUG] Entrando en list_episodes con season_id={season_id}", xbmc.LOGERROR)
         try:
             data = self.api_client.fetch_season_episodes(season_id)
         except Exception as e:
@@ -156,6 +171,7 @@ class MercadoPlayAddon:
 
         episodes = data.get("props", {}).get("components", [])
         if not episodes:
+            xbmc.log("[DEBUG] No se encontraron episodios en la respuesta", xbmc.LOGERROR)
             self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
             self.kodi.end_directory()
             return
@@ -179,6 +195,7 @@ class MercadoPlayAddon:
             if image and not image.startswith("http"):
                 image = f"https:{image}"
 
+            xbmc.log(f"[DEBUG] Agregando episodio: {title}, id: {episode_id}", xbmc.LOGERROR)
             url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
             li = self.kodi.create_list_item(title)
             li.setArt({'thumb': image, 'icon': image, 'poster': image})
