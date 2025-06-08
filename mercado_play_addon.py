@@ -51,7 +51,7 @@ class MercadoPlayAddon:
         
         if not data or "components" not in data:
             xbmcgui.Dialog().notification("Sin contenido", f"No hay resultados para {categoria_str}", xbmcgui.NOTIFICATION_INFO)
-            xbmcplugin.endOfDirectory(addon_handle)
+            self.kodi.end_directory(addon_handle)
             return
 
         results = []
@@ -90,7 +90,7 @@ class MercadoPlayAddon:
                 li = xbmcgui.ListItem(label=title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'episodeguide': description})
-                xbmcplugin.addDirectoryItem(handle=addon_handle, url=url, listitem=li, isFolder=False)
+                self.kodi.add_directory_item(handle=addon_handle, url=url, listitem=li, isFolder=False)
             except Exception as e:
                 xbmc.log(f"[ERROR] Item processing failed: {str(e)}", xbmc.LOGERROR)
 
@@ -111,10 +111,10 @@ class MercadoPlayAddon:
             li = xbmcgui.ListItem(label=">> Ver más")
             li.setArt({'thumb': '', 'icon': '', 'poster': ''})
             li.setInfo('video', {'title': 'Ver más contenido'})
-            xbmcplugin.addDirectoryItem(handle=addon_handle, url=url, listitem=li, isFolder=True)
+            self.kodi.add_directory_item(handle=addon_handle, url=url, listitem=li, isFolder=True)
 
-
-        xbmcplugin.endOfDirectory(addon_handle)
+        self.kodi.end_directory(addon_handle)
+        
 
     
     def list_seasons(self, series_id):
