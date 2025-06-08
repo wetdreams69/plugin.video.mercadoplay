@@ -152,46 +152,46 @@ class MercadoPlayAddon:
 
 
     def list_episodes(self, season_id):
-    try:
-        data = self.api_client.fetch_season_episodes(season_id)
-    except Exception as e:
-        xbmc.log(f"[ERROR] No se pudo obtener episodios para temporada {season_id}: {str(e)}", xbmc.LOGERROR)
-        self.kodi.show_notification("Error", "No se pudieron obtener los episodios", xbmcgui.NOTIFICATION_ERROR)
+        try:
+            data = self.api_client.fetch_season_episodes(season_id)
+        except Exception as e:
+            xbmc.log(f"[ERROR] No se pudo obtener episodios para temporada {season_id}: {str(e)}", xbmc.LOGERROR)
+            self.kodi.show_notification("Error", "No se pudieron obtener los episodios", xbmcgui.NOTIFICATION_ERROR)
+            self.kodi.end_directory()
+            return
+
+        episodes = data.get("props", {}).get("components", [])
+        if not episodes:
+            self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
+            self.kodi.end_directory()
+            return
+
+        for episode in episodes:
+            if episode.get("type") != "compact-media-card":
+                continue
+
+            props = episode.get("props", {})
+            episode_id = props.get("contentId", "")
+            metadata = props.get("linkTo", {}).get("state", {}).get("metadata", {})
+            header = props.get("header", {}).get("default", {})
+
+            title = metadata.get("title", "Episodio")
+            if header.get("bottomLeftItems"):
+                label = header["bottomLeftItems"][0].get("props", {}).get("label")
+                if label:
+                    title = label
+
+            image = header.get("background", {}).get("props", {}).get("url", "")
+            if image and not image.startswith("http"):
+                image = f"https:{image}"
+
+            url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
+            li = self.kodi.create_list_item(title)
+            li.setArt({'thumb': image, 'icon': image, 'poster': image})
+            li.setProperty('IsPlayable', 'true')
+            self.kodi.add_directory_item(url, li, is_folder=False)
+
         self.kodi.end_directory()
-        return
-
-    episodes = data.get("props", {}).get("components", [])
-    if not episodes:
-        self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
-        self.kodi.end_directory()
-        return
-
-    for episode in episodes:
-        if episode.get("type") != "compact-media-card":
-            continue
-
-        props = episode.get("props", {})
-        episode_id = props.get("contentId", "")
-        metadata = props.get("linkTo", {}).get("state", {}).get("metadata", {})
-        header = props.get("header", {}).get("default", {})
-
-        title = metadata.get("title", "Episodio")
-        if header.get("bottomLeftItems"):
-            label = header["bottomLeftItems"][0].get("props", {}).get("label")
-            if label:
-                title = label
-
-        image = header.get("background", {}).get("props", {}).get("url", "")
-        if image and not image.startswith("http"):
-            image = f"https:{image}"
-
-        url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
-        li = self.kodi.create_list_item(title)
-        li.setArt({'thumb': image, 'icon': image, 'poster': image})
-        li.setProperty('IsPlayable', 'true')
-        self.kodi.add_directory_item(url, li, is_folder=False)
-
-    self.kodi.end_directory()
 
     def is_series(self, metadata):
         if not metadata:
