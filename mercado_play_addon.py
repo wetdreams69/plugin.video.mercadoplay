@@ -86,7 +86,7 @@ class MercadoPlayAddon:
                 if image and not image.startswith('http'):
                     image = f'https:{image}'
 
-                url = build_url({'action': 'show_details', 'id': video_id})
+                url = self.kodi.build_url({'action': 'show_details', 'id': video_id})
                 li = xbmcgui.ListItem(label=title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'episodeguide': description})
@@ -101,7 +101,7 @@ class MercadoPlayAddon:
             next_offset = next_page.get("offset")
             next_limit = next_page.get("limit")
 
-            url = build_url({
+            url = self.kodi.build_url({
                 'action': 'list_content',
                 'categoria': category_str,
                 'offset': next_offset,
