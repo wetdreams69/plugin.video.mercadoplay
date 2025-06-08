@@ -77,6 +77,28 @@ class APIClient:
             xbmc.log(f"[ERROR DE API] Video {video_id}: {str(e)}", xbmc.LOGERROR)
             return None
 
+    def fetch_season_episodes(self, season_id):
+        cached = self.cache.get('fetch_season_details', video_id)
+        if cached is not None:
+            return cached
+
+        url = f"{self.api_url}/seasons/{season_id}/episodes"
+
+        headers = {
+            'User-Agent': self.USER_AGENT,
+            'Referer': self.REFERER_URL,
+            'x-csrf-token': csrf_token,
+        }
+        
+
+        try:
+            response = self.session.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            xbmc.log(f"[ERROR DE API] Obtener temporada {season_id}: {str(e)}", xbmc.LOGERROR)
+            return None
+
     def fetch_csrf_token(self):
         cached = self.cache.get('csrf_token')
         if cached is not None:
