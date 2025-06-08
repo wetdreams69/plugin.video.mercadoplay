@@ -47,7 +47,7 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
     def list_category_content(self, category_str, offset=0, limit=24):
-        data = fetch_data_categoria(categoria_str, offset, limit)
+        data = self.api_client.fetch_category_data(categoria_str, offset, limit)
         
         if not data or "components" not in data:
             xbmcgui.Dialog().notification("Sin contenido", f"No hay resultados para {categoria_str}", xbmcgui.NOTIFICATION_INFO)
