@@ -47,75 +47,69 @@ class MercadoPlayAddon:
 
     def list_category_content(self, category_str, offset=0, limit=24):
         data = self.api_client.fetch_category_data(category_str, offset, limit)
+        
         if not data or "components" not in data:
             self.kodi.show_notification("Sin contenido", f"No hay resultados para {category_str}")
             self.kodi.end_directory()
             return
 
         results = []
-
+        
         for component in data.get("components", []):
-            component_type = component.get("type")
-            if component_type == "media-card":
-                media_card = component.get("props", {})
-                link_data = media_card.get("linkTo", {}).get("state", {}).get("metadata", {})
+            if component.get("type") != "media-card":
+                continue
 
-                is_series = self.is_series(link_data)
+            media_card = component.get("props",{})
+            parsed = {
+                "title": media_card.get("linkTo", {}).get("state", {}).get("metadata", {}).get("title", "").replace(" - Mercado Play", ""),
+                "url": media_card.get("linkTo", {}).get("pathname", ""),
+                "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
+                "subtitle": media_card.get("description", {}).get("subtitle", ""),
+                "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", "")
+            }
+            results.append(parsed)
 
-                parsed = {
-                    "title": link_data.get("title", "").replace(" - Mercado Play", ""),
-                    "url": media_card.get("linkTo", {}).get("pathname", ""),
-                    "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
-                    "description": link_data.get("description", ""),
-                    "is_folder": is_series
-                }
-                results.append(parsed)
-
-            elif component_type == "media-rail":
-                items = component.get("props", {}).get("items", [])
-                for item in items:
-                    item_data = item.get("linkTo", {}).get("state", {}).get("metadata", {})
-                    is_series = self.is_series(item_data)
-
-                    results.append({
-                        "title": item_data.get("title", ""),
-                        "url": item.get("linkTo", {}).get("pathname", ""),
-                        "image": item.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
-                        "description": item_data.get("description", ""),
-                        "is_folder": is_series
-                    })
-
+        # Mostrar en Kodi
         for item in results:
             try:
                 title = item.get("title", "Sin título")
                 link = item.get("url", "")
+                image = item.get("image", "")
+                description = item.get("description","")
+
                 if not link:
                     continue
+
                 video_id = os.path.basename(urllib.parse.urlparse(link).path).split('?')[0]
-                image = item.get("image", "")
-                if image and not image.startswith("http"):
-                    image = f"https:{image}"
-                action = 'list_seasons' if item.get('is_folder') else 'show_details'
-                url = self.kodi.build_url({'action': action, 'id': video_id})
+
+                if image and not image.startswith('http'):
+                    image = f'https:{image}'
+
+                url = self.kodi.build_url({'action': 'show_details', 'id': video_id})
                 li = self.kodi.create_list_item(title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
-                li.setInfo('video', {'title': title, 'plot': item.get("description", "")})
-                li.setProperty('IsPlayable', 'false' if item.get('is_folder') else 'true')
-                self.kodi.add_directory_item(url, li, is_folder=item.get('is_folder'))
+                li.setInfo('video', {'title': title, 'plot': description})
+                li.setProperty('IsPlayable', 'true')
+                self.kodi.add_directory_item(url, li, is_folder=False)
             except Exception as e:
                 xbmc.log(f"[ERROR] Procesamiento de ítem fallido: {str(e)}", xbmc.LOGERROR)
 
+        # Botón "Ver más" si hay nextPage
         next_page = data.get("nextPage")
         if next_page:
             next_offset = next_page.get("offset", offset + limit)
             next_limit = next_page.get("limit", limit)
+
             url = self.kodi.build_url({
                 'action': 'list_content',
                 'category': category_str,
                 'offset': next_offset,
                 'limit': next_limit
             })
+
             li = self.kodi.create_list_item(">> Ver más")
+            li.setArt({'thumb': '', 'icon': '', 'poster': ''})
+            li.setInfo('video', {'title': 'Ver más contenido'})
             self.kodi.add_directory_item(url, li)
 
         self.kodi.end_directory()
