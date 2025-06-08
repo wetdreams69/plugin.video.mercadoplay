@@ -86,7 +86,7 @@ class MercadoPlayAddon:
                 if image and not image.startswith('http'):
                     image = f'https:{image}'
 
-                url = build_url({'action': 'ver_detalle', 'id': video_id})
+                url = build_url({'action': 'show_details', 'id': video_id})
                 li = xbmcgui.ListItem(label=title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'episodeguide': description})
@@ -102,8 +102,8 @@ class MercadoPlayAddon:
             next_limit = next_page.get("limit")
 
             url = build_url({
-                'action': 'listar_contenido',
-                'categoria': categoria_str,
+                'action': 'list_content',
+                'categoria': category_str,
                 'offset': next_offset,
                 'limit': next_limit
             })
