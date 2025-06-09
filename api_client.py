@@ -78,7 +78,7 @@ class APIClient:
             return None
 
     def fetch_season_episodes(self, season_id):
-        cached = self.cache.get('fetch_season_details', video_id)
+        cached = self.cache.get('fetch_season_details', season_id)
         if cached is not None:
             return cached
 
