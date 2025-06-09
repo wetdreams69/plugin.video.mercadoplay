@@ -315,11 +315,7 @@ class MercadoPlayAddon:
             self.list_episodes(season_id)
         elif action == 'show_details':
             video_id = params.get('id')
-            details = self.api_client.fetch_video_details(video_id)
-            if self.is_series(details):
-                self.list_seasons(video_id)
-            else:
-                self.play_video(video_id)
+            self.play_video(video_id)
         else:
             xbmc.log(f"[ROUTER] Acción desconocida: {action}", xbmc.LOGWARNING)
 
