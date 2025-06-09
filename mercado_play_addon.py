@@ -86,7 +86,17 @@ class MercadoPlayAddon:
                 if image and not image.startswith('http'):
                     image = f'https:{image}'
 
-                url = self.kodi.build_url({'action': 'show_details', 'id': video_id})
+                try:
+                    details = self.api_client.fetch_video_details(video_id)
+                    if self.is_series(details):
+                        action = 'list_seasons'
+                    else:
+                        action = 'show_details'
+                except Exception as e:
+                    xbmc.log(f"[ERROR] No se pudo determinar si es serie: {e}", xbmc.LOGWARNING)
+                    action = 'show_details'
+
+                url = self.kodi.build_url({'action': action, 'id': video_id})
                 li = xbmcgui.ListItem(label=title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'plot': description})
@@ -160,28 +170,25 @@ class MercadoPlayAddon:
             self.kodi.end_directory()
             return
 
-        episodes = data.get("props", {}).get("components", [])
-        if not episodes:
+        components = data.get("props", {}).get("components", [])
+        if not components:
             xbmc.log("[DEBUG] No se encontraron episodios en la respuesta", xbmc.LOGERROR)
             self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
             self.kodi.end_directory()
             return
 
-        for episode in episodes:
+        for episode in components:
             if episode.get("type") != "compact-media-card":
                 continue
 
             props = episode.get("props", {})
-            episode_id = props.get("contentId", "")
-            metadata = props.get("linkTo", {}).get("state", {}).get("metadata", {})
+            episode_id = props.get("contentId")
             header = props.get("header", {}).get("default", {})
 
-            title = metadata.get("title", "Episodio")
-            if header.get("bottomLeftItems"):
-                label = header["bottomLeftItems"][0].get("props", {}).get("label")
-                if label:
-                    title = label
+            # Título visible
+            title = header.get("bottomLeftItems", [{}])[0].get("props", {}).get("label", "Episodio")
 
+            # Imagen
             image = header.get("background", {}).get("props", {}).get("url", "")
             if image and not image.startswith("http"):
                 image = f"https:{image}"
@@ -195,20 +202,12 @@ class MercadoPlayAddon:
 
         self.kodi.end_directory()
 
+
     def is_series(self, metadata):
-        if not metadata:
-            return False
+        components = metadata.get("components", {})
+        return "seasons-selector" in components and \
+            "seasonsMetadata" in components["seasons-selector"]
 
-        # 1. Tipo de contenido explícito
-        if metadata.get("contentType", "").lower() == "serie":
-            return True
-
-        # 2. Heurística por título (ej: "T1:E3", "Temporada 1", etc.)
-        title = metadata.get("title", "").lower()
-        if "temporada" in title or ("t" in title and "e" in title and ":" in title):
-            return True
-
-        return False
 
     def play_video(self, video_id):
         try:
@@ -314,7 +313,11 @@ class MercadoPlayAddon:
             self.list_episodes(season_id)
         elif action == 'show_details':
             video_id = params.get('id')
-            self.play_video(video_id)
+            details = self.api_client.fetch_video_details(video_id)
+            if self.is_series(details):
+                self.list_seasons(video_id)
+            else:
+                self.play_video(video_id)
         else:
             xbmc.log(f"[ROUTER] Acción desconocida: {action}", xbmc.LOGWARNING)
 
