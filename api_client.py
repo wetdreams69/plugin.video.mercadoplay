@@ -82,6 +82,14 @@ class APIClient:
         if cached is not None:
             return cached
 
+        csrf_token = self.cache.get('csrf_token','')
+        if not csrf_token:
+            csrf_token = self.fetch_csrf_token()
+        
+        if not csrf_token:
+            xbmc.log("[ERROR DE AUTENTICACIÓN] No se pudo obtener token CSRF", xbmc.LOGERROR)
+            return False
+
         url = f"{self.API_URL}/seasons/{season_id}/episodes"
 
         headers = {
