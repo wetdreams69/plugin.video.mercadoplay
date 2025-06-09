@@ -100,7 +100,9 @@ class MercadoPlayAddon:
                 li = xbmcgui.ListItem(label=title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'plot': description})
-                self.kodi.add_directory_item(url, li, False)
+                is_folder = action == 'list_seasons'
+                self.kodi.add_directory_item(url, li, is_folder)
+
             except Exception as e:
                 xbmc.log(f"[ERROR] Item processing failed: {str(e)}", xbmc.LOGERROR)
 
