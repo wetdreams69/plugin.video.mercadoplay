@@ -82,7 +82,7 @@ class APIClient:
         if cached is not None:
             return cached
 
-        url = f"{self.api_url}/seasons/{season_id}/episodes"
+        url = f"{self.API_URL}/seasons/{season_id}/episodes"
 
         headers = {
             'User-Agent': self.USER_AGENT,
