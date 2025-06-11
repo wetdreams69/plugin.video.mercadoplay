@@ -199,10 +199,13 @@ class MercadoPlayAddon:
             if image and not image.startswith("http"):
                 image = f"https:{image}"
 
+            description = props.get("description", {}).get("props", {}).get("label", "")
+
             xbmc.log(f"[DEBUG] Agregando episodio: {title}, id: {episode_id}", xbmc.LOGERROR)
             url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
             li = self.kodi.create_list_item(title)
             li.setArt({'thumb': image, 'icon': image, 'poster': image})
+            li.setInfo('video', {'title': title, 'plot': description})
             li.setProperty('IsPlayable', 'true')
             li.setPath(url)
             self.kodi.add_directory_item(url, li, is_folder=False)
