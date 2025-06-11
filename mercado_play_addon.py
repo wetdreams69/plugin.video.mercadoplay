@@ -101,6 +101,10 @@ class MercadoPlayAddon:
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'plot': description})
                 is_folder = action == 'list_seasons'
+
+                if not is_folder:
+                    li.setProperty('IsPlayable', 'true')
+                    li.setPath(url)
                 self.kodi.add_directory_item(url, li, is_folder)
 
             except Exception as e:
@@ -200,6 +204,7 @@ class MercadoPlayAddon:
             li = self.kodi.create_list_item(title)
             li.setArt({'thumb': image, 'icon': image, 'poster': image})
             li.setProperty('IsPlayable', 'true')
+            li.setPath(url)
             self.kodi.add_directory_item(url, li, is_folder=False)
 
         self.kodi.end_directory()
