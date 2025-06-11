@@ -11,8 +11,9 @@ class CacheManager:
         self.cache_dir = translatePath(self.addon.getAddonInfo('profile'))
         self.cache_file = os.path.join(self.cache_dir, 'addon_cache.json')
         self.ttl_config = {
-            'fetch_category_data': 1800,
+            'fetch_category_data': 43200,
             'fetch_video_details': 43200,
+            'fetch_season_episodes': 43200,
             'csrf_token': 86400,
             'default': 3600
         }
