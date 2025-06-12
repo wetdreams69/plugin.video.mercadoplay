@@ -78,7 +78,7 @@ class APIClient:
             return None
 
     def fetch_season_episodes(self, season_id):
-        cached = self.cache.get('fetch_season_details', season_id)
+        cached = self.cache.get('fetch_season_episodes', season_id)
         if cached is not None:
             return cached
 
@@ -102,6 +102,7 @@ class APIClient:
         try:
             response = self.session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
+            self.cache.set('fetch_season_episodes', data, season_id)
             return response.json()
         except Exception as e:
             xbmc.log(f"[ERROR DE API] Obtener temporada {season_id}: {str(e)}", xbmc.LOGERROR)
@@ -123,7 +124,7 @@ class APIClient:
             token = meta_tag['content'] if meta_tag and meta_tag.has_attr('content') else None
 
             if token:
-                self.cache.set('csrf_token', token, '')
+                self.cache.set('csrf_token', token)
                 xbmc.log(f"[DEBUG] Token CSRF obtenido: {token}", xbmc.LOGDEBUG)
             return token
         except Exception as e:

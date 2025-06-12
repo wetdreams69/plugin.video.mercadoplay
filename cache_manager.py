@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import hashlib
 import xbmc
 import xbmcaddon
 from xbmcvfs import translatePath
@@ -31,7 +32,8 @@ class CacheManager:
                     return json.load(f)
             return {}
         except Exception as e:
-            xbmc.log(f"[ERROR DE CACHÉ] Fallo al cargar: {str(e)}", xbmc.LOGERROR)
+            xbmc.log(f"[ERROR DE CACHÉ] JSON corrupto, se eliminará: {str(e)}", xbmc.LOGERROR)
+            os.remove(self.cache_file)
             return {}
 
     def _save_cache(self, data):
@@ -40,9 +42,10 @@ class CacheManager:
                 json.dump(data, f)
         except Exception as e:
             xbmc.log(f"[ERROR DE CACHÉ] Fallo al guardar: {str(e)}", xbmc.LOGERROR)
-
+    
     def _make_key(self, func_name, *args):
-        return f"{func_name}-{'-'.join(str(arg) for arg in args)}"
+        raw_key = f"{func_name}:{json.dumps(args, sort_keys=True)}"
+        return hashlib.md5(raw_key.encode()).hexdigest()
 
     def get(self, func_name, *args):
         key = self._make_key(func_name, *args)
@@ -62,10 +65,22 @@ class CacheManager:
         key = self._make_key(func_name, *args)
         cache = self._load_cache()
         
+        if key in cache and cache[key]['data'] == data:
+            return
+
         if len(cache) >= self.max_size:
-            oldest_key = min(list(cache.keys()), key=lambda k: cache[k]['timestamp'])
+            oldest_key = min(cache, key=lambda k: cache[k]['timestamp'])
             del cache[oldest_key]
         
         cache[key] = {'timestamp': time.time(), 'data': data}
         self._save_cache(cache)
         xbmc.log(f"[CACHÉ GUARDADO] {key}", xbmc.LOGDEBUG)
+
+
+    def clear(self):
+        try:
+            if os.path.exists(self.cache_file):
+                os.remove(self.cache_file)
+                xbmc.log("[CACHÉ BORRADO]", xbmc.LOGDEBUG)
+        except Exception as e:
+            xbmc.log(f"[ERROR DE CACHÉ] No se pudo borrar: {str(e)}", xbmc.LOGERROR)
