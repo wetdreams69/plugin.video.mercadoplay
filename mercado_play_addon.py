@@ -20,15 +20,12 @@ class MercadoPlayAddon:
         self.cache = CacheManager()
         self.addon = xbmcaddon.Addon()
 
-        # Configurar sistema de cookies
         addon_profile = translatePath(self.addon.getAddonInfo('profile'))
         self.cookie_manager = CookieManager(addon_profile)
 
-        # Configurar sesión HTTP
         self.session = requests.Session()
         self.session.cookies = self.cookie_manager.get_jar()
 
-        # Configurar cliente API
         self.api_client = APIClient(
             session=self.session,
             cache=self.cache,
@@ -66,11 +63,10 @@ class MercadoPlayAddon:
                 "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
                 "subtitle": media_card.get("description", {}).get("subtitle", ""),
                 "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", ""),
-                "media_card": media_card, 
+                "media_card": media_card
             }
             results.append(parsed)
 
-        # Mostrar en Kodi
         for item in results:
             try:
                 title = item.get("title", "Sin título")
@@ -111,7 +107,6 @@ class MercadoPlayAddon:
                 xbmc.log(f"[ERROR] Item processing failed: {str(e)}", xbmc.LOGERROR)
 
 
-        # Botón "Ver más" si hay nextPage
         next_page = data.get("nextPage")
         if next_page:
             next_offset = next_page.get("offset")
@@ -186,10 +181,8 @@ class MercadoPlayAddon:
             episode_id = props.get("contentId")
             header = props.get("header", {}).get("default", {})
 
-            # Título visible
             title = header.get("bottomLeftItems", [{}])[0].get("props", {}).get("label", "Episodio")
 
-            # Imagen
             image = header.get("background", {}).get("props", {}).get("url", "")
             if image and not image.startswith("http"):
                 image = f"https:{image}"
