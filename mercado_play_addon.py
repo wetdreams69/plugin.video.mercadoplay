@@ -168,8 +168,6 @@ class MercadoPlayAddon:
     def list_episodes(self, season_id):
         xbmc.log(f"[DEBUG] Entrando en list_episodes con season_id={season_id}", xbmc.LOGERROR)
         try:
-            details = self.api_client.fetch_video_details(season_id)
-            xbmc.log(f"[DEBUG] video_details {season_id}: {str(details)}", xbmc.LOGERROR)
             
             data = self.api_client.fetch_season_episodes(season_id)
             xbmc.log(f"[DEBUG] season_episodes {season_id}: {str(data)}", xbmc.LOGERROR)

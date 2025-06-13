@@ -102,7 +102,8 @@ class APIClient:
         try:
             response = self.session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
-            self.cache.set('fetch_season_episodes', data, season_id)
+            self.cache.set('fetch_season_episodes', response.json(), season_id)
+            xbmc.log(f"[ERROR DE API] Obtener temporada {season_id}: {str(response)}", xbmc.LOGERROR)
             return response.json()
         except Exception as e:
             xbmc.log(f"[ERROR DE API] Obtener temporada {season_id}: {str(e)}", xbmc.LOGERROR)
