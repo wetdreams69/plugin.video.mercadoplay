@@ -3,6 +3,10 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: en_GB\n"
 
-msgctxt "#32001"
+msgctxt "#32002"
 msgid "Contenido +18"
 msgstr "18+ Content"
+
+msgctxt "#32003"
+msgid "Borrar caché"
+msgstr "Borrar caché"

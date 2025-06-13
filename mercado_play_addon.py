@@ -317,6 +317,9 @@ class MercadoPlayAddon:
         elif action == 'show_details':
             video_id = params.get('id')
             self.play_video(video_id)
+        elif action == 'clear_cache':
+            self.cache.clear()
+            xbmc.executebuiltin('Notification(MercadoLibre Play, Caché borrado con éxito, 3000, info)')
         else:
             xbmc.log(f"[ROUTER] Acción desconocida: {action}", xbmc.LOGWARNING)
 
