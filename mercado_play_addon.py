@@ -212,10 +212,10 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
 
-    def is_series(self,media_card):
+    def is_series(self, media_card):
         try:
             components = media_card["linkTo"]["state"]["components"]
-            for comp in components.values():
+            for comp in components:
                 if comp.get("type", "").startswith("seasons-selector") and \
                 comp.get("props", {}).get("seasons", 0) > 0:
                     return True
