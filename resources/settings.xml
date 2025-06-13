@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <settings>
-    <category label="Config">
+    <category label="32001">
         <setting id="adult_content" 
          type="bool"
-         label="32001"
+         label=32001
          default="false"/>
     </category>
 </settings>
