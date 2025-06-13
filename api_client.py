@@ -102,9 +102,9 @@ class APIClient:
         try:
             response = self.session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
-            self.cache.set('fetch_season_episodes', response.json(), season_id)
-            xbmc.log(f"[ERROR DE API] Obtener temporada {season_id}: {str(response)}", xbmc.LOGERROR)
-            return response.json()
+            data = response.json()
+            self.cache.set('fetch_season_episodes', data, season_id)
+            return data
         except Exception as e:
             xbmc.log(f"[ERROR DE API] Obtener temporada {season_id}: {str(e)}", xbmc.LOGERROR)
             return None
@@ -126,7 +126,6 @@ class APIClient:
 
             if token:
                 self.cache.set('csrf_token', token)
-                xbmc.log(f"[DEBUG] Token CSRF obtenido: {token}", xbmc.LOGDEBUG)
             return token
         except Exception as e:
             xbmc.log(f"[ERROR DE API] Fallo al obtener token CSRF: {str(e)}", xbmc.LOGERROR)
@@ -161,7 +160,6 @@ class APIClient:
             response = self.session.put(url, headers=headers, json=body, timeout=10)
             
             if response.status_code == 200:
-                xbmc.log("[AUTENTICACIÓN EXITOSA] Preferencias de usuario configuradas", xbmc.LOGINFO)
                 return True
             elif response.status_code == 403:
                 xbmc.log("[ERROR DE AUTENTICACIÓN] 403 Prohibido - Usuario no autenticado", xbmc.LOGWARNING)

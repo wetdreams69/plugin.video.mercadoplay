@@ -39,7 +39,6 @@ class MercadoPlayAddon:
         )
 
     def list_categories(self):
-        xbmc.log("[DEBUG] Entrando en list_categories", xbmc.LOGERROR)
         for category in Categoria:
             url = self.kodi.build_url({'action': 'list_content', 'category': category.value})
             li = self.kodi.create_list_item(category.name.title())
@@ -133,7 +132,6 @@ class MercadoPlayAddon:
 
     
     def list_seasons(self, series_id):
-        xbmc.log(f"[DEBUG] Entrando en list_seasons con series_id={series_id}", xbmc.LOGERROR)
         data = self.api_client.fetch_video_details(series_id)
 
         seasons_selector = data.get("components", {}).get("seasons-selector", {})
@@ -141,7 +139,6 @@ class MercadoPlayAddon:
         seasons_metadata = seasons_selector.get("seasonsMetadata", [])
 
         if not tabs:
-            xbmc.log("[DEBUG] No se encontraron tabs de temporadas", xbmc.LOGERROR)
             self.kodi.show_notification("Sin temporadas", "Este contenido no tiene temporadas", xbmcgui.NOTIFICATION_WARNING)
             self.kodi.end_directory()
             return
@@ -157,7 +154,6 @@ class MercadoPlayAddon:
             if "episodesCount" in metadata:
                 title += f" ({metadata['episodesCount']} episodios)"
 
-            xbmc.log(f"[DEBUG] Agregando temporada: {title}, id: {season_id}", xbmc.LOGERROR)
             url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
             li = self.kodi.create_list_item(title)
             li.setProperty('IsPlayable', 'false')
@@ -166,12 +162,8 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
     def list_episodes(self, season_id):
-        xbmc.log(f"[DEBUG] Entrando en list_episodes con season_id={season_id}", xbmc.LOGERROR)
         try:
-            
             data = self.api_client.fetch_season_episodes(season_id)
-            xbmc.log(f"[DEBUG] season_episodes {season_id}: {str(data)}", xbmc.LOGERROR)
-            
         except Exception as e:
             xbmc.log(f"[ERROR] No se pudo obtener episodios para temporada {season_id}: {str(e)}", xbmc.LOGERROR)
             self.kodi.show_notification("Error", "No se pudieron obtener los episodios", xbmcgui.NOTIFICATION_ERROR)
@@ -180,7 +172,6 @@ class MercadoPlayAddon:
 
         components = data.get("props", {}).get("components", [])
         if not components:
-            xbmc.log("[DEBUG] No se encontraron episodios en la respuesta", xbmc.LOGERROR)
             self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
             self.kodi.end_directory()
             return
@@ -203,7 +194,6 @@ class MercadoPlayAddon:
 
             description = props.get("description", {}).get("props", {}).get("label", "")
 
-            xbmc.log(f"[DEBUG] Agregando episodio: {title}, id: {episode_id}", xbmc.LOGERROR)
             url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
             li = self.kodi.create_list_item(title)
             li.setArt({'thumb': image, 'icon': image, 'poster': image})

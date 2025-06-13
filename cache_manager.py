@@ -55,7 +55,6 @@ class CacheManager:
             entry = cache[key]
             ttl = self.ttl_config.get(func_name, self.ttl_config['default'])
             if time.time() - entry['timestamp'] < ttl:
-                xbmc.log(f"[CACHÉ EXITOSO] {key}", xbmc.LOGDEBUG)
                 return entry['data']
             del cache[key]
             self._save_cache(cache)
@@ -74,13 +73,11 @@ class CacheManager:
         
         cache[key] = {'timestamp': time.time(), 'data': data}
         self._save_cache(cache)
-        xbmc.log(f"[CACHÉ GUARDADO] {key}", xbmc.LOGDEBUG)
 
 
     def clear(self):
         try:
             if os.path.exists(self.cache_file):
                 os.remove(self.cache_file)
-                xbmc.log("[CACHÉ BORRADO]", xbmc.LOGDEBUG)
         except Exception as e:
             xbmc.log(f"[ERROR DE CACHÉ] No se pudo borrar: {str(e)}", xbmc.LOGERROR)
