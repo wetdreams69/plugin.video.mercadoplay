@@ -87,8 +87,7 @@ class MercadoPlayAddon:
                     image = f'https:{image}'
 
                 try:
-                    details = self.api_client.fetch_video_details(video_id)
-                    if self.is_series(details):
+                    if self.is_series(media_card):
                         action = 'list_seasons'
                     else:
                         action = 'show_details'
@@ -213,10 +212,16 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
 
-    def is_series(self, metadata):
-        components = metadata.get("components", {})
-        return "seasons-selector" in components and \
-            "seasonsMetadata" in components["seasons-selector"]
+    def is_series(self,media_card):
+        try:
+            components = media_card["linkTo"]["state"]["components"]
+            for comp in components.values():
+                if comp.get("type", "").startswith("seasons-selector") and \
+                comp.get("props", {}).get("seasons", 0) > 0:
+                    return True
+        except (KeyError, TypeError):
+            pass
+        return False
 
 
     def play_video(self, video_id):
