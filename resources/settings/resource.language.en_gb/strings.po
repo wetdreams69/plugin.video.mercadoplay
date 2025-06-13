@@ -1,8 +1,8 @@
 msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
-"Language: es_ES\n"
+"Language: en_GB\n"
 
 msgctxt "#32001"
 msgid "Contenido +18"
-msgstr "Contenido +18"
+msgstr "18+ Content"
