@@ -168,14 +168,17 @@ class MercadoPlayAddon:
     def list_episodes(self, season_id):
         xbmc.log(f"[DEBUG] Entrando en list_episodes con season_id={season_id}", xbmc.LOGERROR)
         try:
+            details = self.api_client.fetch_video_details(season_id)
+            xbmc.log(f"[DEBUG] video_details {season_id}: {str(details)}", xbmc.LOGERROR)
+            
             data = self.api_client.fetch_season_episodes(season_id)
+            xbmc.log(f"[DEBUG] season_episodes {season_id}: {str(data)}", xbmc.LOGERROR)
+            
         except Exception as e:
             xbmc.log(f"[ERROR] No se pudo obtener episodios para temporada {season_id}: {str(e)}", xbmc.LOGERROR)
             self.kodi.show_notification("Error", "No se pudieron obtener los episodios", xbmcgui.NOTIFICATION_ERROR)
             self.kodi.end_directory()
             return
-
-        xbmc.log(f"[DEBUG] Respuesta cruda de episodios para {season_id}: {json.dumps(data)}", xbmc.LOGERROR)
 
         components = data.get("props", {}).get("components", [])
         if not components:
