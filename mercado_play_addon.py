@@ -175,6 +175,8 @@ class MercadoPlayAddon:
             self.kodi.end_directory()
             return
 
+        xbmc.log(f"[DEBUG] Respuesta cruda de episodios para {season_id}: {json.dumps(data)}", xbmc.LOGERROR)
+
         components = data.get("props", {}).get("components", [])
         if not components:
             xbmc.log("[DEBUG] No se encontraron episodios en la respuesta", xbmc.LOGERROR)
