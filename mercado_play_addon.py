@@ -65,7 +65,8 @@ class MercadoPlayAddon:
                 "url": media_card.get("linkTo", {}).get("pathname", ""),
                 "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
                 "subtitle": media_card.get("description", {}).get("subtitle", ""),
-                "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", "")
+                "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", ""),
+                "media_card": media_card, 
             }
             results.append(parsed)
 
@@ -86,6 +87,7 @@ class MercadoPlayAddon:
                     image = f'https:{image}'
 
                 try:
+                    media_card = item.get("media_card")
                     if self.is_series(media_card):
                         action = 'list_seasons'
                     else:
