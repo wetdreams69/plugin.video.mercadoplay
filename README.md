@@ -18,8 +18,8 @@ Las marcas "Mercado Libre", "MercadoPlay" y demás logotipos son propiedad de su
 - **This addon does not promote or support piracy.**
 - **Este complemento no promueve ni facilita la piratería.**
 
-This addon simply provides an alternative way to access publicly available content from [MercadoPlay](https://www.mercadoplay.com/).  
-Este plugin simplemente permite acceder al contenido gratuito y legalmente disponible en [MercadoPlay](https://www.mercadoplay.com/).
+This addon simply provides an alternative way to access publicly available content from [MercadoPlay](https://play.mercadolibre.com.ar).  
+Este plugin simplemente permite acceder al contenido gratuito y legalmente disponible en [MercadoPlay](https://play.mercadolibre.com.ar).
 
 **ONLY WORKS WITH KODI 19 (Matrix) OR LATER**  
 **SOLO FUNCIONA CON KODI 19 (Matrix) O SUPERIOR**
