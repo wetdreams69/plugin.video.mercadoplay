@@ -20,7 +20,7 @@
         <assets>
             <icon>icon.png</icon>
         </assets>
-        <language>es</language>
+        <language>resources/language</language>
         <license>MIT</license>
         <source>https://github.com/wetdreams69/plugin.video.mercadoplay</source>
     </extension>
