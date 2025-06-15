@@ -3,8 +3,6 @@
 [![Kodi version](https://img.shields.io/badge/kodi%20versions-19+-blue)](https://kodi.tv/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-![banner](https://github.com/tu-usuario/tu-repo/raw/main/resources/banner.png)
-
 ---
 
 ## Disclaimer / Advertencia
