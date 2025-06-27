@@ -18,7 +18,7 @@ class APIClient:
         if cached is not None:
             return cached
         
-        params = {"filter": category, "version": ""}
+        params = {"filter": category}
         if offset is not None:
             params["offset"] = offset
         if limit is not None:
