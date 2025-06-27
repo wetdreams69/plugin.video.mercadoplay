@@ -325,5 +325,6 @@ class MercadoPlayAddon:
 
     def run(self, argv):
         paramstring = argv[2][1:] if len(argv) > 2 else None
+        self.api_client.init()
         self.router(paramstring)
         self.cookie_manager.save_cookies()

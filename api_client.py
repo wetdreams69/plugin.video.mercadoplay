@@ -131,6 +131,21 @@ class APIClient:
             xbmc.log(f"[ERROR DE API] Fallo al obtener token CSRF: {str(e)}", xbmc.LOGERROR)
             return None
 
+    def init(self):
+        try:
+            headers = {
+                'User-Agent': self.USER_AGENT
+            }
+
+            response = self.session.get(self.BASE_URL, headers=headers, timeout=10)
+            response.raise_for_status()
+
+            xbmc.log("[PING] Cookies actualizadas desde BASE_URL", xbmc.LOGINFO)
+            
+        except Exception as e:
+            xbmc.log(f"[ERROR DE API] Fallo a obtener cookies: {str(e)}", xbmc.LOGERROR)
+            return None
+
     def set_user_preferences(self):
         csrf_token = self.cache.get('csrf_token','')
         if not csrf_token:
