@@ -297,6 +297,14 @@ class MercadoPlayAddon:
             self.kodi.show_notification("Error de reproducción", str(e), xbmcgui.NOTIFICATION_ERROR)
             self.kodi.resolve_url(False, self.kodi.create_list_item())
 
+    def list_subcategories(self, main_category):
+        subcategories = SUBCATEGORIES.get(main_category, [])
+        for label, filter_value in subcategories:
+            url = self.kodi.build_url({'action': 'list_content', 'category': filter_value})
+            li = self.kodi.create_list_item(label)
+            self.kodi.add_directory_item(url, li, is_folder=True)
+        self.kodi.end_directory()
+    
     def router(self, paramstring):
         params = dict(urllib.parse.parse_qsl(paramstring)) if paramstring else {}
         action = params.get('action')
@@ -307,7 +315,10 @@ class MercadoPlayAddon:
             category = params.get('category')
             offset = int(params.get('offset', 0))
             limit = int(params.get('limit', 24))
-            self.list_category_content(category, offset, limit)
+            if category in ['peliculas', 'series']:
+                self.list_subcategories(category)
+            else:
+                self.list_category_content(category, offset, limit)
         elif action == 'list_seasons':
             series_id = params.get('id')
             self.list_seasons(series_id)
