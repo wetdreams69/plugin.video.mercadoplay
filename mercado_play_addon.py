@@ -6,7 +6,7 @@ import xbmc
 import xbmcgui
 import xbmcaddon
 from urllib.parse import urlencode
-from constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT
+from constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT, SUBCATEGORIES
 from kodi_content_handler import KodiContentHandler
 from api_client import APIClient
 from cache_manager import CacheManager
