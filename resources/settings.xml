@@ -10,5 +10,9 @@
                 label="32003"
                 action="RunPlugin(plugin://plugin.video.mercadoplay/?action=clear_cache)"
                 option="button"/>
+        <setting id="country" 
+                type="select" 
+                label="32004"
+                lvalues="32005|32006"/>
     </category>
 </settings>
