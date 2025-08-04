@@ -20,3 +20,15 @@ msgstr "18+ Content"
 msgctxt "#32003"
 msgid "Borrar caché"
 msgstr "Delete cache"
+
+msgctxt "#32004"
+msgid "País"
+msgstr "Country"
+
+msgctxt "#32005"
+msgid "Argentina"
+msgstr "Argentina"
+
+msgctxt "#32006"
+msgid "Colombia"
+msgstr "Colombia"
