@@ -12,6 +12,7 @@ from api_client import APIClient
 from cache_manager import CacheManager
 from cookie_manager import CookieManager
 from xbmcvfs import translatePath
+from inputstreamhelper import Helper
 
 class MercadoPlayAddon:
     def __init__(self, addon_handle):
@@ -213,89 +214,91 @@ class MercadoPlayAddon:
 
 
     def play_video(self, video_id):
-        try:
-            if not self.api_client.set_user_preferences():
-                xbmc.log("[ADVERTENCIA DE AUTENTICACIÓN] Preferencias de usuario no configuradas", xbmc.LOGWARNING)
+        is_helper = Helper("mpd", drm='com.widevine.alpha')
+        if is_helper.check_inputstream():
+            try:
+                if not self.api_client.set_user_preferences():
+                    xbmc.log("[ADVERTENCIA DE AUTENTICACIÓN] Preferencias de usuario no configuradas", xbmc.LOGWARNING)
 
-            data = self.api_client.fetch_video_details(video_id)
-            if not data:
-                raise Exception("Datos del video no disponibles")
+                data = self.api_client.fetch_video_details(video_id)
+                if not data:
+                    raise Exception("Datos del video no disponibles")
 
-            player_data = data.get('components', {}).get('player', {})
-            if player_data.get('restricted') and not self.addon.getSettingBool('adult_content'):
-                self.kodi.show_notification("Contenido restringido", "Habilita +18 en los ajustes para ver este contenido", xbmcgui.NOTIFICATION_WARNING)
-                return
+                player_data = data.get('components', {}).get('player', {})
+                if player_data.get('restricted') and not self.addon.getSettingBool('adult_content'):
+                    self.kodi.show_notification("Contenido restringido", "Habilita +18 en los ajustes para ver este contenido", xbmcgui.NOTIFICATION_WARNING)
+                    return
 
-            playback = player_data.get('playbackContext', {})
-            sources = playback.get('sources', {})
-            subtitles = playback.get('subtitles', [])
-            drm_data = playback.get('drm', {}).get('widevine', {})
+                playback = player_data.get('playbackContext', {})
+                sources = playback.get('sources', {})
+                subtitles = playback.get('subtitles', [])
+                drm_data = playback.get('drm', {}).get('widevine', {})
 
-            stream_url = sources.get('dash')
-            license_url = drm_data.get('serverUrl')
-            http_headers = drm_data.get('httpRequestHeaders', {})
-            license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
+                stream_url = sources.get('dash')
+                license_url = drm_data.get('serverUrl')
+                http_headers = drm_data.get('httpRequestHeaders', {})
+                license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
 
-            if not stream_url:
-                raise Exception("URL del stream no disponible")
-            if not license_url or not license_key:
-                raise Exception("Datos DRM incompletos")
+                if not stream_url:
+                    raise Exception("URL del stream no disponible")
+                if not license_url or not license_key:
+                    raise Exception("Datos DRM incompletos")
 
-            subtitle_list = []
-            for sub in subtitles:
-                lang = sub.get('lang', '')
-                url = sub.get('url', '')
-                if lang and lang != "disabled" and url:
-                    display_name = sub.get('label', lang.upper())
-                    if lang.lower() == 'es-mx':
-                        display_name = "Español (Latinoamérica)"
-                    elif lang.lower() == 'pt-br':
-                        display_name = "Portugués (Brasil)"
-                    elif lang.lower() == 'en-us':
-                        display_name = "English"
-                    elif lang.lower() == 'es-es':
-                        display_name = "Español (España)"
-                    subtitle_list.append({
-                        'label': display_name,
-                        'language': lang,
-                        'url': url
-                    })
+                subtitle_list = []
+                for sub in subtitles:
+                    lang = sub.get('lang', '')
+                    url = sub.get('url', '')
+                    if lang and lang != "disabled" and url:
+                        display_name = sub.get('label', lang.upper())
+                        if lang.lower() == 'es-mx':
+                            display_name = "Español (Latinoamérica)"
+                        elif lang.lower() == 'pt-br':
+                            display_name = "Portugués (Brasil)"
+                        elif lang.lower() == 'en-us':
+                            display_name = "English"
+                        elif lang.lower() == 'es-es':
+                            display_name = "Español (España)"
+                        subtitle_list.append({
+                            'label': display_name,
+                            'language': lang,
+                            'url': url
+                        })
 
-            license_headers = {
-                'User-Agent': USER_AGENT,
-                'Content-Type': 'application/octet-stream',
-                'Origin': BASE_URL,
-                'Referer': REFERER_URL,
-            }
-
-            li = xbmcgui.ListItem(path=stream_url)
-            li.setProperty('inputstream', 'inputstream.adaptive')
-            li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
-            if subtitle_list:
-                li.setSubtitles([sub['url'] for sub in subtitle_list])
-
-            if http_headers.get('x-dt-auth-token'):
-                license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
-                license_config = {
-                    'license_server_url': license_url.replace("specConform=true", ""),
-                    'headers': urlencode(license_headers),
-                    'post_data': 'R{SSM}',
-                    'response_data': 'JBlicense'
+                license_headers = {
+                    'User-Agent': USER_AGENT,
+                    'Content-Type': 'application/octet-stream',
+                    'Origin': BASE_URL,
+                    'Referer': REFERER_URL,
                 }
-                li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
-            elif http_headers.get('X-AxDRM-Message'):
-                license_headers['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
-                license_config = license_url + '|' + 'X-AxDRM-Message=' + license_key + '|R{SSM}|'
-                li.setProperty('inputstream.adaptive.license_key', license_config)
 
-            li.setMimeType('application/dash+xml')
-            li.setContentLookup(False)
-            self.kodi.resolve_url(True, li)
+                li = xbmcgui.ListItem(path=stream_url)
+                li.setProperty('inputstream', 'inputstream.adaptive')
+                li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
+                if subtitle_list:
+                    li.setSubtitles([sub['url'] for sub in subtitle_list])
 
-        except Exception as e:
-            xbmc.log(f"[ERROR DE REPRODUCCIÓN] {str(e)}", xbmc.LOGERROR)
-            self.kodi.show_notification("Error de reproducción", str(e), xbmcgui.NOTIFICATION_ERROR)
-            self.kodi.resolve_url(False, self.kodi.create_list_item())
+                if http_headers.get('x-dt-auth-token'):
+                    license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
+                    license_config = {
+                        'license_server_url': license_url.replace("specConform=true", ""),
+                        'headers': urlencode(license_headers),
+                        'post_data': 'R{SSM}',
+                        'response_data': 'JBlicense'
+                    }
+                    li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
+                elif http_headers.get('X-AxDRM-Message'):
+                    license_headers['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
+                    license_config = license_url + '|' + 'X-AxDRM-Message=' + license_key + '|R{SSM}|'
+                    li.setProperty('inputstream.adaptive.license_key', license_config)
+
+                li.setMimeType('application/dash+xml')
+                li.setContentLookup(False)
+                self.kodi.resolve_url(True, li)
+
+            except Exception as e:
+                xbmc.log(f"[ERROR DE REPRODUCCIÓN] {str(e)}", xbmc.LOGERROR)
+                self.kodi.show_notification("Error de reproducción", str(e), xbmcgui.NOTIFICATION_ERROR)
+                self.kodi.resolve_url(False, self.kodi.create_list_item())
 
     def list_subcategories(self, main_category):
         subcategories = SUBCATEGORIES.get(main_category, [])
