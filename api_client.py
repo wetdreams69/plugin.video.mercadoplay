@@ -1,5 +1,7 @@
 import requests
 import xbmc
+import re
+import json
 from bs4 import BeautifulSoup
 from urllib.parse import urlencode
 from constants import USER_AGENT, BASE_URL, API_URL, REFERER_URL
@@ -55,7 +57,7 @@ class APIClient:
         headers = {
             'User-Agent': self.USER_AGENT,
             'Referer': self.REFERER_URL,
-            'X-CSRF-Token': csrf_token if csrf_token else ''
+            'x-csrf-token': csrf_token if csrf_token else ''
         }
         
         params = {
@@ -189,3 +191,108 @@ class APIClient:
         except Exception as e:
             xbmc.log(f"[ERROR DE API] Preferencias de usuario: {str(e)}", xbmc.LOGERROR)
             return False
+
+    def fetch_playback_data(self, video_id):
+        cached = self.cache.get('fetch_playback_data', video_id)
+        if cached is not None:
+            return cached
+        
+        try:
+            player_url = f"{self.BASE_URL}/ver/{video_id}/player?origin=organic"
+            
+            headers = {
+                'User-Agent': self.USER_AGENT,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9,es-AR;q=0.8,es;q=0.7',
+                'Referer': f"{self.BASE_URL}ver/{video_id}",
+            }
+            
+            response = self.session.get(player_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            html = response.text
+            
+            pattern = r'_n\.ctx\.s\.q\(\s*"((?:[^"\\]|\\.)*)"\s*\)'
+            match = re.search(pattern, html, re.DOTALL)
+            if not match:
+                raise Exception("No se encontró _n.ctx.s.q en el HTML")
+            
+            escaped_json = match.group(1)
+            try:
+                unescaped = json.loads(f'"{escaped_json}"')
+            except json.JSONDecodeError as e:
+                xbmc.log(f"[ERROR DE API] Error al desescapar JSON: {str(e)}", xbmc.LOGERROR)
+                raise
+            
+            start_idx = unescaped.find('{"pageProps":')
+            if start_idx == -1:
+                start_idx = unescaped.find('{')
+                if start_idx == -1:
+                    raise Exception("No se encontró ningún objeto JSON")
+            
+            brace_count = 0
+            in_string = False
+            escape = False
+            end_idx = start_idx
+            for i, ch in enumerate(unescaped[start_idx:], start=start_idx):
+                if escape:
+                    escape = False
+                    continue
+                if ch == '\\':
+                    escape = True
+                    continue
+                if ch == '"' and not escape:
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if ch == '{':
+                        brace_count += 1
+                    elif ch == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end_idx = i + 1
+                            break
+            else:
+                end_idx = len(unescaped)
+            
+            full_json = unescaped[start_idx:end_idx]
+            
+            full_json = re.sub(r':u\b', ':null', full_json)
+            full_json = re.sub(r',u\b', ',null', full_json)
+            full_json = re.sub(r'\bu,', 'null,', full_json)
+            full_json = re.sub(r',\s*}', '}', full_json)
+            full_json = re.sub(r',\s*]', ']', full_json)
+            
+            try:
+                data = json.loads(full_json)
+            except json.JSONDecodeError as e:
+                xbmc.log(f"[ERROR DE API] Error al parsear JSON: {str(e)}", xbmc.LOGERROR)
+                raise
+            
+            try:
+                playback_data = data['pageProps']['dehydratedState']['queries'][0]['state']['data']
+            except (KeyError, IndexError, TypeError) as e:
+                if isinstance(data, dict) and 'playbackContent' in data:
+                    playback_data = data
+                else:
+                    xbmc.log(f"[ERROR DE API] Estructura JSON inesperada: {str(e)}", xbmc.LOGERROR)
+                    raise Exception(f"No se pudo acceder a los datos de reproducción: {e}")
+            
+            playback_content = playback_data.get('playbackContent', {})
+            source = playback_content.get('source', {})
+            
+            result = {
+                'dash_url': source.get('dash'),
+                'hls_url': source.get('hls'),
+                'license_url': source.get('drm', {}).get('widevine', {}).get('LA_URL'),
+                'license_headers': source.get('drm', {}).get('widevine', {}).get('headers', {}),
+                'subtitles': playback_content.get('subtitles', []),
+                'playback_session_id': playback_content.get('playbackSessionId'),
+                'title': playback_content.get('title'),
+            }
+            
+            self.cache.set('fetch_playback_data', result, video_id)
+            return result
+            
+        except Exception as e:
+            xbmc.log(f"[ERROR DE API] fetch_playback_data {video_id}: {str(e)}", xbmc.LOGERROR)
+            return None

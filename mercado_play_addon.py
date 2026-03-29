@@ -217,32 +217,44 @@ class MercadoPlayAddon:
         is_helper = Helper("mpd", drm='com.widevine.alpha')
         if is_helper.check_inputstream():
             try:
-                if not self.api_client.set_user_preferences():
-                    xbmc.log("[ADVERTENCIA DE AUTENTICACIÓN] Preferencias de usuario no configuradas", xbmc.LOGWARNING)
+                playback_data = self.api_client.fetch_playback_data(video_id)
+                
+                if not playback_data:
+                    xbmc.log("[ADVERTENCIA] fetch_playback_data falló, intentando fetch_video_details", xbmc.LOGWARNING)
+                    if not self.api_client.set_user_preferences():
+                        xbmc.log("[ADVERTENCIA DE AUTENTICACIÓN] Preferencias de usuario no configuradas", xbmc.LOGWARNING)
 
-                data = self.api_client.fetch_video_details(video_id)
-                if not data:
-                    raise Exception("Datos del video no disponibles")
+                    data = self.api_client.fetch_video_details(video_id)
+                    if not data:
+                        raise Exception("Datos del video no disponibles")
 
-                player_data = data.get('components', {}).get('player', {})
-                if player_data.get('restricted') and not self.addon.getSettingBool('adult_content'):
-                    self.kodi.show_notification("Contenido restringido", "Habilita +18 en los ajustes para ver este contenido", xbmcgui.NOTIFICATION_WARNING)
-                    return
+                    player_data = data.get('components', {}).get('player', {})
+                    if player_data.get('restricted') and not self.addon.getSettingBool('adult_content'):
+                        self.kodi.show_notification("Contenido restringido", "Habilita +18 en los ajustes para ver este contenido", xbmcgui.NOTIFICATION_WARNING)
+                        return
 
-                playback = player_data.get('playbackContext', {})
-                sources = playback.get('sources', {})
-                subtitles = playback.get('subtitles', [])
-                drm_data = playback.get('drm', {}).get('widevine', {})
+                    playback = player_data.get('playbackContext', {})
+                    sources = playback.get('sources', {})
+                    subtitles = playback.get('subtitles', [])
+                    drm_data = playback.get('drm', {}).get('widevine', {})
 
-                stream_url = sources.get('dash')
-                license_url = drm_data.get('serverUrl')
-                http_headers = drm_data.get('httpRequestHeaders', {})
-                license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
+                    stream_url = sources.get('dash')
+                    license_url = drm_data.get('serverUrl')
+                    http_headers = drm_data.get('httpRequestHeaders', {})
+                    license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
+                else:
+                    stream_url = playback_data.get('dash_url')
+                    license_url = playback_data.get('license_url')
+                    http_headers = playback_data.get('license_headers', {})
+                    subtitles = playback_data.get('subtitles', [])
+                    license_key = None
 
                 if not stream_url:
+                    xbmc.log(f"[ERROR DE REPRODUCCIÓN] URL del stream no disponible", xbmc.LOGERROR)
                     raise Exception("URL del stream no disponible")
-                if not license_url or not license_key:
-                    raise Exception("Datos DRM incompletos")
+                if not license_url:
+                    xbmc.log(f"[ERROR DE REPRODUCCIÓN] URL de licencia no disponible", xbmc.LOGERROR)
+                    raise Exception("URL de licencia no disponible")
 
                 subtitle_list = []
                 for sub in subtitles:
@@ -264,7 +276,7 @@ class MercadoPlayAddon:
                             'url': url
                         })
 
-                license_headers = {
+                license_headers_dict = {
                     'User-Agent': USER_AGENT,
                     'Content-Type': 'application/octet-stream',
                     'Origin': BASE_URL,
@@ -277,22 +289,30 @@ class MercadoPlayAddon:
                 if subtitle_list:
                     li.setSubtitles([sub['url'] for sub in subtitle_list])
 
-                if http_headers.get('x-dt-auth-token'):
-                    license_headers['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
-                    license_config = {
-                        'license_server_url': license_url.replace("specConform=true", ""),
-                        'headers': urlencode(license_headers),
-                        'post_data': 'R{SSM}',
-                        'response_data': 'JBlicense'
-                    }
-                    li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
-                elif http_headers.get('X-AxDRM-Message'):
-                    license_headers['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
-                    license_config = license_url + '|' + 'X-AxDRM-Message=' + license_key + '|R{SSM}|'
-                    li.setProperty('inputstream.adaptive.license_key', license_config)
+                
+                if license_key or http_headers:
+                    if http_headers.get('x-dt-auth-token'):
+                        license_headers_dict['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
+                        license_config = {
+                            'license_server_url': license_url.replace("specConform=true", ""),
+                            'headers': urlencode(license_headers_dict),
+                            'post_data': 'R{SSM}',
+                            'response_data': 'JBlicense'
+                        }
+                        li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
+                    elif http_headers.get('X-AxDRM-Message'):
+                        license_headers_dict['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
+                        x_ax_drm_message = http_headers.get('X-AxDRM-Message')
+                        license_config = license_url + '|' + 'X-AxDRM-Message=' + x_ax_drm_message + '|R{SSM}|'
+                        li.setProperty('inputstream.adaptive.license_key', license_config)
+                    else:
+                        li.setProperty('inputstream.adaptive.license_key', license_url)
+                else:
+                    li.setProperty('inputstream.adaptive.license_key', license_url)
 
                 li.setMimeType('application/dash+xml')
                 li.setContentLookup(False)
+                xbmc.log(f"[REPRODUCCIÓN] Iniciando reproducción de video ID {video_id} con URL: {stream_url}", xbmc.LOGINFO)
                 self.kodi.resolve_url(True, li)
 
             except Exception as e:
