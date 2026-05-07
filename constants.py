@@ -9,9 +9,9 @@ class Categoria(Enum):
 addon = xbmcaddon.Addon()
 country = addon.getSetting('country')
 
-if country == "1": # Colombia
+if country == "1":
     BASE_URL = "https://play.mercadolibre.com.co"
-else:  # Default to Argentina
+else:
     BASE_URL = "https://play.mercadolibre.com.ar"
 
 REFERER_URL = f"{BASE_URL}/"

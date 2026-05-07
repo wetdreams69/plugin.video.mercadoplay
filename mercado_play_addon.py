@@ -9,16 +9,21 @@ from urllib.parse import urlencode
 from constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT, SUBCATEGORIES
 from kodi_content_handler import KodiContentHandler
 from api_client import APIClient
-from cache_manager import CacheManager
+from cacheman import CacheManager
 from cookie_manager import CookieManager
 from xbmcvfs import translatePath
 from inputstreamhelper import Helper
+from adskipper import start_ad_skipper
 
 class MercadoPlayAddon:
     def __init__(self, addon_handle):
         self.addon_handle = addon_handle
         self.kodi = KodiContentHandler(addon_handle)
-        self.cache = CacheManager()
+        self.cache = CacheManager(
+            db_name='mercadoplay_cache.db',
+            compress=True,
+            compress_threshold=2048
+        )
         self.addon = xbmcaddon.Addon()
 
         addon_profile = translatePath(self.addon.getAddonInfo('profile'))
@@ -78,7 +83,7 @@ class MercadoPlayAddon:
                 if not link:
                     continue
 
-                video_id = os.path.basename(urllib.parse.urlparse(link).path).split('?')[0]
+                video_id = urllib.parse.urlparse(link).path.split('/ver/')[-1].split('?')[0].strip('/')
 
                 if image and not image.startswith('http'):
                     image = f'https:{image}'
@@ -131,72 +136,158 @@ class MercadoPlayAddon:
     
     def list_seasons(self, series_id):
         data = self.api_client.fetch_video_details(series_id)
-
-        seasons_selector = data.get("components", {}).get("seasons-selector", {})
-        tabs = seasons_selector.get("selector", {}).get("props", {}).get("tabs", [])
-        seasons_metadata = seasons_selector.get("seasonsMetadata", [])
-
-        if not tabs:
-            self.kodi.show_notification("Sin temporadas", "Este contenido no tiene temporadas", xbmcgui.NOTIFICATION_WARNING)
+        if not data:
+            self.kodi.show_notification("Error", "No se pudo obtener información de la serie", xbmcgui.NOTIFICATION_ERROR)
             self.kodi.end_directory()
             return
 
-        metadata_map = {s['id']: s for s in seasons_metadata}
+        components = data.get("components", [])
+        seasons_selector = {}
+        tabs = []
+        
+        # Estilo 1: Basado en componentes (Nordic)
+        if isinstance(components, dict):
+            seasons_selector = components.get("seasons-selector", {})
+        elif isinstance(components, list):
+            for comp in components:
+                if comp.get("type") == "seasons-selector":
+                    seasons_selector = comp
+                    break
+        
+        if seasons_selector:
+            tabs = seasons_selector.get("selector", {}).get("props", {}).get("tabs", [])
+            if not tabs:
+                seasons_metadata = seasons_selector.get("seasonsMetadata", [])
+                if seasons_metadata:
+                    tabs = [{"value": s["id"], "label": s.get("name", str(i+1))} for i, s in enumerate(seasons_metadata)]
+            
+            seasons_metadata = seasons_selector.get("seasonsMetadata", [])
+            metadata_map = {s['id']: s for s in seasons_metadata}
 
-        for tab in tabs:
-            season_id = tab.get("value")
-            season_number = tab.get("label", "0")
-            metadata = metadata_map.get(season_id, {})
+            for tab in tabs:
+                season_id = tab.get("value")
+                season_number = tab.get("label", "0")
+                metadata = metadata_map.get(season_id, {})
 
-            title = f"Temporada {season_number}"
-            if "episodesCount" in metadata:
-                title += f" ({metadata['episodesCount']} episodios)"
+                title = f"Temporada {season_number}"
+                if "episodesCount" in metadata:
+                    title += f" ({metadata['episodesCount']} episodios)"
 
-            url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
-            li = self.kodi.create_list_item(title)
-            li.setProperty('IsPlayable', 'false')
-            self.kodi.add_directory_item(url, li, is_folder=True)
+                url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
+                li = self.kodi.create_list_item(title)
+                li.setProperty('IsPlayable', 'false')
+                self.kodi.add_directory_item(url, li, is_folder=True)
+        
+        # Estilo 2: Basado en data.seasons (Estructura simplificada)
+        else:
+            inner_data = data.get("data", {})
+            seasons = inner_data.get("seasons", [])
+            if not seasons and not tabs:
+                # Si sigue sin haber nada, intentar buscar 'seasons' en la raíz de data
+                seasons = data.get("seasons", [])
+
+            for season in seasons:
+                season_id = season.get("id")
+                season_number = season.get("index", "0")
+                ep_count = season.get("episodesCount")
+                
+                title = f"Temporada {season_number}"
+                if ep_count:
+                    title += f" ({ep_count} episodios)"
+                
+                url = self.kodi.build_url({'action': 'list_episodes', 'id': season_id})
+                li = self.kodi.create_list_item(title)
+                li.setProperty('IsPlayable', 'false')
+                self.kodi.add_directory_item(url, li, is_folder=True)
+
+        if not seasons_selector and not data.get("data", {}).get("seasons") and not data.get("seasons"):
+            self.kodi.show_notification("Sin temporadas", "No se encontraron temporadas disponibles", xbmcgui.NOTIFICATION_WARNING)
 
         self.kodi.end_directory()
 
     def list_episodes(self, season_id):
         try:
             data = self.api_client.fetch_season_episodes(season_id)
+            if not data:
+                raise Exception("Respuesta vacía de la API")
         except Exception as e:
             xbmc.log(f"[ERROR] No se pudo obtener episodios para temporada {season_id}: {str(e)}", xbmc.LOGERROR)
             self.kodi.show_notification("Error", "No se pudieron obtener los episodios", xbmcgui.NOTIFICATION_ERROR)
             self.kodi.end_directory()
             return
 
-        components = data.get("props", {}).get("components", [])
-        if not components:
-            self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
-            self.kodi.end_directory()
-            return
+        # Estilo 1: Nueva API { "content": { "episodes": [...] } }
+        content = data.get("content", {})
+        episodes = content.get("episodes", [])
+        
+        if episodes:
+            for ep in episodes:
+                episode_id = ep.get("id")
+                title = ep.get("name", f"Episodio {episode_id[:8]}")
+                label = ep.get("episode_label")
+                if label:
+                    title = f"{label}. {title}"
+                
+                description = ep.get("description") or ep.get("overview", "")
+                
+                image = ""
+                images = ep.get("images", [])
+                for img in images:
+                    if img.get("type") == "LANDSCAPE":
+                        image = img.get("url", "")
+                        break
+                if not image and images:
+                    image = images[0].get("url", "")
+                
+                if image and not image.startswith("http"):
+                    image = f"https:{image}"
 
-        for episode in components:
-            if episode.get("type") != "compact-media-card":
-                continue
+                url = self.kodi.build_url({'action': 'show_details', 'id': f"episodio/{episode_id}"})
+                li = self.kodi.create_list_item(title)
+                li.setArt({'thumb': image, 'icon': image, 'poster': image})
+                li.setInfo('video', {'title': title, 'plot': description})
+                li.setProperty('IsPlayable', 'true')
+                li.setPath(url)
+                self.kodi.add_directory_item(url, li, is_folder=False)
+        
+        # Estilo 2: API antigua { "props": { "components": [...] } }
+        else:
+            components = data.get("props", {}).get("components", [])
+            if not components:
+                self.kodi.show_notification("Sin episodios", "No se encontraron episodios disponibles", xbmcgui.NOTIFICATION_INFO)
+                self.kodi.end_directory()
+                return
 
-            props = episode.get("props", {})
-            episode_id = props.get("contentId")
-            header = props.get("header", {}).get("default", {})
+            for episode in components:
+                if episode.get("type") != "compact-media-card":
+                    continue
 
-            title = header.get("bottomLeftItems", [{}])[0].get("props", {}).get("label", "Episodio")
+                props = episode.get("props", {})
+                episode_id = props.get("contentId")
+                header = props.get("header", {}).get("default", {})
 
-            image = header.get("background", {}).get("props", {}).get("url", "")
-            if image and not image.startswith("http"):
-                image = f"https:{image}"
+                title = props.get("title")
+                if not title:
+                    bottom_left = header.get("bottomLeftItems", [{}])
+                    if bottom_left:
+                        title = bottom_left[0].get("props", {}).get("label")
+                
+                if not title:
+                    title = f"Episodio {episode_id[:8]}"
 
-            description = props.get("description", {}).get("props", {}).get("label", "")
+                image = header.get("background", {}).get("props", {}).get("url", "")
+                if image and not image.startswith("http"):
+                    image = f"https:{image}"
 
-            url = self.kodi.build_url({'action': 'show_details', 'id': episode_id})
-            li = self.kodi.create_list_item(title)
-            li.setArt({'thumb': image, 'icon': image, 'poster': image})
-            li.setInfo('video', {'title': title, 'plot': description})
-            li.setProperty('IsPlayable', 'true')
-            li.setPath(url)
-            self.kodi.add_directory_item(url, li, is_folder=False)
+                description = props.get("description", {}).get("props", {}).get("label", "")
+
+                url = self.kodi.build_url({'action': 'show_details', 'id': f"episodio/{episode_id}"})
+                li = self.kodi.create_list_item(title)
+                li.setArt({'thumb': image, 'icon': image, 'poster': image})
+                li.setInfo('video', {'title': title, 'plot': description})
+                li.setProperty('IsPlayable', 'true')
+                li.setPath(url)
+                self.kodi.add_directory_item(url, li, is_folder=False)
 
         self.kodi.end_directory()
 
@@ -219,6 +310,9 @@ class MercadoPlayAddon:
             try:
                 playback_data = self.api_client.fetch_playback_data(video_id)
                 
+                playback_session_id = None
+                is_hls = False
+
                 if not playback_data:
                     xbmc.log("[ADVERTENCIA] fetch_playback_data falló, intentando fetch_video_details", xbmc.LOGWARNING)
                     if not self.api_client.set_user_preferences():
@@ -228,32 +322,52 @@ class MercadoPlayAddon:
                     if not data:
                         raise Exception("Datos del video no disponibles")
 
-                    player_data = data.get('components', {}).get('player', {})
+                    components = data.get('components', [])
+                    player_data = {}
+                    if isinstance(components, dict):
+                        player_data = components.get('player', {})
+                    elif isinstance(components, list):
+                        for comp in components:
+                            if comp.get('type') == 'player':
+                                player_data = comp
+                                break
+                    
                     if player_data.get('restricted') and not self.addon.getSettingBool('adult_content'):
                         self.kodi.show_notification("Contenido restringido", "Habilita +18 en los ajustes para ver este contenido", xbmcgui.NOTIFICATION_WARNING)
                         return
 
                     playback = player_data.get('playbackContext', {})
-                    sources = playback.get('sources', {})
+                    if not playback:
+                        # Intentar buscar playbackContent directamente si no hay player component
+                        playback = data.get('playbackContent', {})
+                    
+                    sources = playback.get('sources', {}) or playback.get('source', {})
                     subtitles = playback.get('subtitles', [])
                     drm_data = playback.get('drm', {}).get('widevine', {})
 
-                    stream_url = sources.get('dash')
+                    stream_url = sources.get('sessionInitUrl') or sources.get('dash')
+                    if stream_url == "N/A":
+                        stream_url = None
+                    is_hls = stream_url and ('.m3u8' in stream_url)
                     license_url = drm_data.get('serverUrl')
                     http_headers = drm_data.get('httpRequestHeaders', {})
                     license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
+                    playback_session_id = playback.get('playbackSessionId')
                 else:
-                    stream_url = playback_data.get('dash_url')
+                    stream_url = playback_data.get('dash_url') or playback_data.get('hls_url')
+                    if stream_url == "N/A":
+                        stream_url = None
+                    
                     license_url = playback_data.get('license_url')
                     http_headers = playback_data.get('license_headers', {})
                     subtitles = playback_data.get('subtitles', [])
-                    license_key = None
+                    license_key = http_headers.get('x-dt-auth-token') or http_headers.get('X-AxDRM-Message')
+                    playback_session_id = playback_data.get('playback_session_id')
+                    is_hls = stream_url and ('.m3u8' in stream_url)
 
                 if not stream_url:
-                    xbmc.log(f"[ERROR DE REPRODUCCIÓN] URL del stream no disponible", xbmc.LOGERROR)
                     raise Exception("URL del stream no disponible")
                 if not license_url:
-                    xbmc.log(f"[ERROR DE REPRODUCCIÓN] URL de licencia no disponible", xbmc.LOGERROR)
                     raise Exception("URL de licencia no disponible")
 
                 subtitle_list = []
@@ -276,44 +390,89 @@ class MercadoPlayAddon:
                             'url': url
                         })
 
-                license_headers_dict = {
+                license_headers = {
                     'User-Agent': USER_AGENT,
                     'Content-Type': 'application/octet-stream',
                     'Origin': BASE_URL,
                     'Referer': REFERER_URL,
                 }
+                
+                if http_headers:
+                    for key, value in http_headers.items():
+                        existing_keys = {k.lower(): k for k in license_headers.keys()}
+                        if key.lower() in existing_keys:
+                            license_headers[existing_keys[key.lower()]] = value
+                        else:
+                            license_headers[key] = value
+
+                if playback_session_id and not any(k.lower() == 'x-dt-auth-token' for k in license_headers):
+                    license_headers['x-dt-auth-token'] = playback_session_id
 
                 li = xbmcgui.ListItem(path=stream_url)
                 li.setProperty('inputstream', 'inputstream.adaptive')
                 li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
                 if subtitle_list:
                     li.setSubtitles([sub['url'] for sub in subtitle_list])
-
                 
-                if license_key or http_headers:
-                    if http_headers.get('x-dt-auth-token'):
-                        license_headers_dict['x-dt-auth-token'] = http_headers.get('x-dt-auth-token')
-                        license_config = {
-                            'license_server_url': license_url.replace("specConform=true", ""),
-                            'headers': urlencode(license_headers_dict),
-                            'post_data': 'R{SSM}',
-                            'response_data': 'JBlicense'
-                        }
-                        li.setProperty('inputstream.adaptive.license_key', '|'.join(license_config.values()))
-                    elif http_headers.get('X-AxDRM-Message'):
-                        license_headers_dict['X-AxDRM-Message'] = http_headers.get('X-AxDRM-Message')
-                        x_ax_drm_message = http_headers.get('X-AxDRM-Message')
-                        license_config = license_url + '|' + 'X-AxDRM-Message=' + x_ax_drm_message + '|R{SSM}|'
-                        li.setProperty('inputstream.adaptive.license_key', license_config)
-                    else:
-                        li.setProperty('inputstream.adaptive.license_key', license_url)
-                else:
-                    li.setProperty('inputstream.adaptive.license_key', license_url)
+                license_headers['Referer'] = REFERER_URL
+                
+                license_headers_url = urlencode(license_headers)
+                
+                license_config = {
+                    'license_server_url': license_url,
+                    'headers': license_headers_url,
+                    'post_data': 'R{SSM}',
+                    'response_data': ''
+                }
+                
+                license_config_str = '|'.join(license_config.values())
+                
+                li.setProperty('inputstream.adaptive.license_key', license_config_str)
 
-                li.setMimeType('application/dash+xml')
+                if is_hls:
+                    li.setMimeType('application/vnd.apple.mpegurl')
+                    li.setProperty('inputstream.adaptive.manifest_type', 'hls')
+                else:
+                    li.setMimeType('application/dash+xml')
+                    li.setProperty('inputstream.adaptive.max_video_resolution', '480')
+
                 li.setContentLookup(False)
                 xbmc.log(f"[REPRODUCCIÓN] Iniciando reproducción de video ID {video_id} con URL: {stream_url}", xbmc.LOGINFO)
+
+                skipper = None
+                thread = None
+
+                if not is_hls and self.addon.getSettingBool('enable_adskipper'):
+                    try:
+                        skipper, thread = start_ad_skipper(
+                            stream_url,
+                            label="Mercado Play",
+                            extra_headers={
+                                "User-Agent": USER_AGENT,
+                                "Referer": REFERER_URL
+                            }
+                        )
+                    except Exception as e:
+                        xbmc.log(f"[ADSKIPPER] Error al iniciar: {str(e)}", xbmc.LOGWARNING)
+
                 self.kodi.resolve_url(True, li)
+
+                if skipper:
+                    monitor = xbmc.Monitor()
+                    player = xbmc.Player()
+                    
+                    for _ in range(100):
+                        if player.isPlaying() or monitor.abortRequested():
+                            break
+                        monitor.waitForAbort(0.1)
+
+                    while player.isPlaying() and not monitor.abortRequested():
+                        monitor.waitForAbort(1)
+
+                    skipper.stop()
+                    if thread:
+                        thread.join(timeout=2)
+                    xbmc.log(f"[ADSKIPPER] Finalizado. Ads saltados: {skipper.skip_count}", xbmc.LOGINFO)
 
             except Exception as e:
                 xbmc.log(f"[ERROR DE REPRODUCCIÓN] {str(e)}", xbmc.LOGERROR)

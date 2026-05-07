@@ -5,92 +5,75 @@
 
 ---
 
-## Disclaimer / Advertencia
+## Disclaimer
 
 This plugin is **not officially commissioned or endorsed by Mercado Libre S.A.**  
 "Mercado Libre", "MercadoPlay" and associated logos are trademarks of their respective owners.
 
-Este plugin **no es oficial** y **no fue comisionado ni respaldado por Mercado Libre S.A.**  
-Las marcas "Mercado Libre", "MercadoPlay" y demás logotipos son propiedad de sus respectivos dueños.
-
-**Important / Importante**
+**Important**
 
 - **This addon does not promote or support piracy.**
-- **Este complemento no promueve ni facilita la piratería.**
+- This addon simply provides an alternative way to access publicly available content from [MercadoPlay](https://play.mercadolibre.com.ar).
 
-This addon simply provides an alternative way to access publicly available content from [MercadoPlay](https://play.mercadolibre.com.ar).  
-Este plugin simplemente permite acceder al contenido gratuito y legalmente disponible en [MercadoPlay](https://play.mercadolibre.com.ar).
-
-**ONLY WORKS WITH KODI 19 (Matrix) OR LATER**  
-**SOLO FUNCIONA CON KODI 19 (Matrix) O SUPERIOR**
+**ONLY WORKS WITH KODI 19 (Matrix) OR LATER**
 
 ---
 
-## Supported Features / Funciones Soportadas
+## Supported Features
 
-- Navigation by category (movies, series, kids, etc).  
-  Navegación por categorías (películas, series, infantiles, etc).
-
-- Direct playback from the platform.  
-  Reproducción directa desde la plataforma.
-
-- Cache management for faster browsing.  
-  Gestión de caché para navegación más rápida.
-
-- Cookie and session handling.  
-  Manejo de cookies y sesión.
-
-- Basic remote control support in Kodi.  
-  Soporte básico para control remoto de Kodi.
+- **MPEG-DASH & SSAI Support**: Full support for Server-Side Ad Insertion (SSAI) streams.
+- **Ad Skipping**: Integrated with `script.module.adskipper` to automatically detect and skip advertisement periods in DASH streams.
+- **Dynamic Navigation**: Browse content by category (Movies, Series, Kids, etc.).
+- **Metadata Extraction**: Improved extraction logic using robust HTML/JSON parsing.
+- **Cache Management**: SQLite-based cache system for fast browsing.
+- **DRM Support**: Widevine L3 support for protected content (forced 480p for maximum compatibility).
 
 ---
 
-## Missing Features / Faltantes
+## Configuration
 
-- 🔍 Search / Búsqueda  
-- 🤖 Recommendations / Recomendaciones
-
----
-
-## Installation / Instalación
-
-### From ZIP file / Desde archivo ZIP
-
-1. Download the `.zip` file:  
-   Descargar el archivo `.zip`:
-
-
-2. Open Kodi and navigate to:  
-Abrir Kodi y navegar a:
-
-
-3. Select the downloaded file.  
-Seleccionar el archivo descargado.
-
-4. Access the plugin from:  
-Acceder al plugin desde:
-
-
-### Requirements / Requisitos
-
-- Kodi 19 or later  
-Kodi 19 o superior
-
-- `inputstream.adaptive` (usually activated automatically)  
-`inputstream.adaptive` (activado automáticamente por Kodi si está disponible)
+### AdSkipper
+You can enable or disable automatic ad skipping in the addon settings. When enabled, the addon will monitor the playback and perform a `seek` to jump past detected ad slots in the MPEG-DASH manifest.
 
 ---
 
-## Regional Limitation / Limitaciones geográficas
+## Changelog
 
-This plugin is configured by default to work in **Argentina**.  
-Este plugin está configurado por defecto para funcionar en **Argentina**.
+### v1.4.0
+- **New Feature**: Integration with `script.module.adskipper` for automatic ad skipping.
+- **New Feature**: Added setting flag to enable/disable AdSkipper.
+- **Fix**: Improved MPEG-DASH handshake for SSAI streams.
+- **Fix**: Enhanced resolution filtering to stabilize playback on various devices.
+- **Refactor**: Cleaned up internal logic to follow SOLID principles.
 
-Other developers are invited to edit `constants.py` to make it work in other countries where MercadoPlay is available.  
-Invitamos a otros desarrolladores a modificar el archivo `constants.py` para adaptarlo a otros países donde MercadoPlay esté habilitado.
+### v1.3.0
+- Initial stable release with full metadata extraction and Widevine support.
 
 ---
 
-## Credits / Créditos
+## Installation
 
-Developed by / Desarrollado por: `wetdreams69`
+### From ZIP file
+
+1. Download the `.zip` file from the repository.
+2. Open Kodi and navigate to `Add-ons` > `Install from zip file`.
+3. Select the downloaded file.
+4. Access the plugin from the `Video Add-ons` section.
+
+### Requirements
+
+- Kodi 19 or later
+- `inputstream.adaptive` (enabled)
+- `script.module.adskipper` (dependency)
+
+---
+
+## Regional Limitation
+
+This plugin is configured by default for **Argentina**. To use it in other countries where MercadoPlay is available, you may need to update the `BASE_URL` and `API_URL` in `constants.py`.
+
+---
+
+## Credits
+
+Developed by: `wetdreams69`

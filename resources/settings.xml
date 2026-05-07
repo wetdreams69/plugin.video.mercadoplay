@@ -14,5 +14,9 @@
                 type="select" 
                 label="32004"
                 lvalues="32005|32006"/>
+        <setting id="enable_adskipper"
+                 type="bool"
+                 label="32007"
+                 default="true"/>
     </category>
 </settings>
