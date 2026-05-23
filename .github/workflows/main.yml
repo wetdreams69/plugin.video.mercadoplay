@@ -1,48 +1,65 @@
-name: Auto-zip plugin on push
+name: Kodi Release
 
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
-  zip-and-commit:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Set repo name as env var
-        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
-
-      - name: Prepare zip without unwanted files
+      - name: Set variables
         run: |
-          mkdir -p temp/${REPO_NAME}
+          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      - name: Build Kodi addon zip
+        id: build
+        run: |
+          ADDON_ID=$(grep -oP 'id="\K[^"]+' addon.xml | head -1)
+
+          echo "ADDON_ID=${ADDON_ID}" >> $GITHUB_ENV
+
+          ZIP_NAME="${ADDON_ID}-${VERSION}.zip"
+
+          mkdir -p build/${ADDON_ID}
+
           rsync -av \
             --exclude=".git" \
-            --exclude=".gitignore" \
-            --exclude="${REPO_NAME}.zip" \
             --exclude=".github" \
-            --exclude="temp" \
-            ./ temp/${REPO_NAME}/
-          
-          cd temp
-          zip -r ../${REPO_NAME}.zip ${REPO_NAME} -x '*/.git/*' -x '*/temp/*'
+            --exclude=".gitignore" \
+            --exclude="build" \
+            --exclude="*.zip" \
+            ./ build/${ADDON_ID}/
+
+          cd build
+          zip -r ../${ZIP_NAME} ${ADDON_ID}
           cd ..
-          rm -rf temp
 
-      - name: Commit and push zip file
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Create or update release
         env:
-          REPO_NAME: ${{ env.REPO_NAME }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "Release already exists"
 
-          git add ${REPO_NAME}.zip
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
+            gh release upload "${VERSION}" \
+              "${ZIP_NAME}" \
+              --clobber
+          else
+            echo "Creating release"
 
-          git commit -m "Update zip file on push"
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-          git push origin HEAD:master
+            gh release create "${VERSION}" \
+              "${ZIP_NAME}" \
+              --title "${VERSION}" \
+              --notes "Release ${VERSION}"
+          fi
