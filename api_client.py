@@ -15,40 +15,61 @@ class APIClient:
         self.API_URL = api_url
         self.REFERER_URL = referer_url
 
-    def fetch_category_data(self, category, offset=0, limit=24):
-        key = f"category_data:{category}:{offset}:{limit}"
+    def fetch_category_data(self, category, offset=0, limit=35):
+        """
+        Llama al nuevo endpoint POST /api/groups/{seccion} de MercadoPlay.
+        category es el groupId (ej: "oscars", "top-10-show").
+        Devuelve la respuesta JSON con clave "items".
+        """
+        key = f"group_data:{category}:{offset}:{limit}"
         cached = self.cache.get(key)
         if cached is not None:
             return cached
-        
-        params = {"filter": category}
-        if offset is not None:
-            params["offset"] = offset
-        if limit is not None:
-            params["limit"] = limit
 
-        url = f"{self.API_URL}feed?{urlencode(params)}"
+        url = f"{self.API_URL}groups/{category}"
 
-        headers = {
-            "User-Agent": self.USER_AGENT,
-            "Referer": self.REFERER_URL
+        params = {
+            "offset": offset,
+            "limit": limit,
+            "sectionKey": "home",
+            "style": "PORTRAIT",
         }
 
+        csrf_token = self.fetch_csrf_token()
+        headers = {
+            "User-Agent": self.USER_AGENT,
+            "Referer": self.REFERER_URL,
+            "Origin": self.BASE_URL,
+            "Accept": "application/json, text/plain, */*",
+            "Content-Length": "0",
+        }
+        if csrf_token:
+            headers["x-csrf-token"] = csrf_token
+
         try:
-            response = self.session.get(url, headers=headers, timeout=10)
+            response = self.session.post(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
+            if data is None:
+                data = {"items": []}
             self.cache.set(key, data, ttl=43200)
             return data
         except Exception as e:
-            xbmc.log(f"[ERROR DE API] Categoría {category}: {str(e)}", xbmc.LOGERROR)
-            return {"components": []}
+            xbmc.log(f"[ERROR DE API] Grupo {category}: {str(e)}", xbmc.LOGERROR)
+            return {"items": []}
 
     def _extract_json_from_html(self, html):
-        pattern = r'_n\.ctx\.s\.q\(\s*"(.*?)"\s*\)'
-        match = re.search(pattern, html, re.DOTALL)
+        patterns = [
+            r'_n\.ctx\.s\[\"nr\"\]\.q\(\s*"(.*?)"\s*\)',
+            r'_n\.ctx\.s\.q\(\s*"(.*?)"\s*\)',
+        ]
+        match = None
+        for pattern in patterns:
+            match = re.search(pattern, html, re.DOTALL)
+            if match:
+                break
         if not match:
-            xbmc.log("[DEBUG] No se encontró el patrón _n.ctx.s.q", xbmc.LOGDEBUG)
+            xbmc.log('[DEBUG] No se encontro el patron _n.ctx.s.q o _n.ctx.s["nr"].q', xbmc.LOGDEBUG)
             return None
         
         escaped_json = match.group(1)
@@ -301,11 +322,11 @@ class APIClient:
         except Exception as e:
             xbmc.log(f"[ERROR DE API] Preferencias de usuario: {str(e)}", xbmc.LOGERROR)
             return False
-    def fetch_playback_data(self, video_id):
+    def fetch_playback_data(self, video_id, max_height=720):
         key = f"playback_data:{video_id}"
         cached = self.cache.get(key)
         if cached is not None and cached.get('dash_url') not in (None, 'N/A', ''):
-            if '0-480' in str(cached.get('dash_url')):
+            if f'0-{max_height}' in str(cached.get('dash_url')):
                 return cached
             else:
                 self.cache.set(key, None, ttl=1)
@@ -360,26 +381,21 @@ class APIClient:
                 try:
                     headers_post = {
                         'User-Agent': self.USER_AGENT,
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'text/plain;charset=UTF-8',
                         'Origin': self.BASE_URL,
                         'Referer': player_url,
                     }
                     
-                    if 'adSignaling' in body_payload:
-                        body_payload['adSignaling']['enabled'] = True
+                    # No modificar body_payload: la firma HMAC se calcula sobre el
+                    # cuerpo original; cualquier cambio invalida la firma.
                     
-                    if 'adsParams' in body_payload:
-                        body_payload['adsParams']['monetization_type'] = 'FREE'
-                        body_payload['adsParams']['device_os'] = 'desktop'
-                        body_payload['adsParams']['device_type'] = '2'
-                        body_payload['adsParams']['platform_id'] = 'desktop'
-                        body_payload['adsParams']['allcues'] = '1'
+                    # (adsParams no se modifican: la firma HMAC cubre el cuerpo original)
                     
                     if "aws.manifestfilter" in session_init_url:
-                        session_init_url = re.sub(r'video_height%3A0-\d+', 'video_height%3A0-480', session_init_url)
+                        session_init_url = re.sub(r'video_height%3A0-\d+', f'video_height%3A0-{max_height}', session_init_url)
                     else:
                         sep = '&' if '?' in session_init_url else '?'
-                        session_init_url += f"{sep}aws.manifestfilter=video_height%3A0-480"
+                        session_init_url += f"{sep}aws.manifestfilter=video_height%3A0-{max_height}"
                     
                     parsed = urlparse(session_init_url)
                     base_ssai_domain = f"{parsed.scheme}://{parsed.netloc}"

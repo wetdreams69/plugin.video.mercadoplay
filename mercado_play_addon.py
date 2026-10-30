@@ -6,7 +6,7 @@ import xbmc
 import xbmcgui
 import xbmcaddon
 from urllib.parse import urlencode
-from constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT, SUBCATEGORIES
+from constants import Categoria, BASE_URL, API_URL, REFERER_URL, USER_AGENT, CATEGORIA_GRUPOS
 from kodi_content_handler import KodiContentHandler
 from api_client import APIClient
 from cacheman import CacheManager
@@ -48,61 +48,51 @@ class MercadoPlayAddon:
             self.kodi.add_directory_item(url, li)
         self.kodi.end_directory()
 
-    def list_category_content(self, category_str, offset=0, limit=24):
+    def list_category_content(self, category_str, offset=0, limit=35):
+        # Si es una categoría principal, mostrar sus grupos
+        grupos_cat = CATEGORIA_GRUPOS.get(category_str)
+        if grupos_cat:
+            for label, group_id in grupos_cat:
+                url = self.kodi.build_url({'action': 'list_content', 'category': group_id})
+                li = self.kodi.create_list_item(label)
+                self.kodi.add_directory_item(url, li, is_folder=True)
+            self.kodi.end_directory()
+            return
+
+        # Es un groupId, obtener items del grupo
         data = self.api_client.fetch_category_data(category_str, offset, limit)
-        
-        if not data or "components" not in data:
+
+        if not data or "items" not in data:
             xbmcgui.Dialog().notification("Sin contenido", f"No hay resultados para {category_str}", xbmcgui.NOTIFICATION_INFO)
             self.kodi.end_directory()
             return
 
-        results = []
-        
-        for component in data.get("components", []):
-            if component.get("type") != "media-card":
-                continue
-
-            media_card = component.get("props",{})
-            parsed = {
-                "title": media_card.get("linkTo", {}).get("state", {}).get("metadata", {}).get("title", "").replace(" - Mercado Play", ""),
-                "url": media_card.get("linkTo", {}).get("pathname", ""),
-                "image": media_card.get("header", {}).get("default", {}).get("background", {}).get("props", {}).get("url", ""),
-                "subtitle": media_card.get("description", {}).get("subtitle", ""),
-                "description": media_card.get("description", {}).get("overview", {}).get("props", {}).get("label", ""),
-                "media_card": media_card
-            }
-            results.append(parsed)
-
-        for item in results:
+        for item in data.get("items", []):
             try:
                 title = item.get("title", "Sin título")
-                link = item.get("url", "")
-                image = item.get("image", "")
-                description = item.get("description","")
+                video_id = item.get("id", "")
+                content_type = item.get("type", "")  # MOVIE o SHOW
+                image = item.get("images", {}).get("poster", "")
+                description = item.get("description", "")
 
-                if not link:
+                if not video_id:
                     continue
 
-                video_id = urllib.parse.urlparse(link).path.split('/ver/')[-1].split('?')[0].strip('/')
+                if image and not image.startswith("http"):
+                    image = f"https:{image}"
 
-                if image and not image.startswith('http'):
-                    image = f'https:{image}'
+                is_serie = content_type == "SHOW"
 
-                try:
-                    media_card = item.get("media_card")
-                    if self.is_series(media_card):
-                        action = 'list_seasons'
-                    else:
-                        action = 'show_details'
-                except Exception as e:
-                    xbmc.log(f"[ERROR] No se pudo determinar si es serie: {e}", xbmc.LOGWARNING)
+                if is_serie:
+                    action = 'list_seasons'
+                else:
                     action = 'show_details'
 
                 url = self.kodi.build_url({'action': action, 'id': video_id})
                 li = xbmcgui.ListItem(label=title)
                 li.setArt({'thumb': image, 'icon': image, 'poster': image})
                 li.setInfo('video', {'title': title, 'plot': description})
-                is_folder = action == 'list_seasons'
+                is_folder = is_serie
 
                 if not is_folder:
                     li.setProperty('IsPlayable', 'true')
@@ -112,19 +102,15 @@ class MercadoPlayAddon:
             except Exception as e:
                 xbmc.log(f"[ERROR] Item processing failed: {str(e)}", xbmc.LOGERROR)
 
-
-        next_page = data.get("nextPage")
-        if next_page:
-            next_offset = next_page.get("offset")
-            next_limit = next_page.get("limit")
-
+        # Paginación: si devolvimos el límite completo, hay más
+        items_count = len(data.get("items", []))
+        if items_count == limit:
             url = self.kodi.build_url({
                 'action': 'list_content',
                 'category': category_str,
-                'offset': next_offset,
-                'limit': next_limit
+                'offset': offset + limit,
+                'limit': limit
             })
-
             li = xbmcgui.ListItem(label=">> Ver más")
             li.setArt({'thumb': '', 'icon': '', 'poster': ''})
             li.setInfo('video', {'title': 'Ver más contenido'})
@@ -292,23 +278,22 @@ class MercadoPlayAddon:
         self.kodi.end_directory()
 
 
-    def is_series(self, media_card):
-        try:
-            components = media_card["linkTo"]["state"]["components"]
-            for comp in components:
-                if comp.get("type", "").startswith("seasons-selector") and \
-                comp.get("props", {}).get("seasons", 0) > 0:
-                    return True
-        except (KeyError, TypeError):
-            pass
-        return False
+    def is_series(self, item):
+        return item.get("type") == "SHOW"
 
 
     def play_video(self, video_id):
         is_helper = Helper("mpd", drm='com.widevine.alpha')
         if is_helper.check_inputstream():
             try:
-                playback_data = self.api_client.fetch_playback_data(video_id)
+                # Resolución máxima configurable (default 720); el CDM decide el máximo real.
+                max_res_setting = self.addon.getSetting('max_resolution') or ''
+                if max_res_setting in ('0', '1', '2'):
+                    max_res_setting = ['480', '720', '1080'][int(max_res_setting)]
+                if max_res_setting not in ('480', '720', '1080'):
+                    max_res_setting = '720'
+                max_height = int(max_res_setting)
+                playback_data = self.api_client.fetch_playback_data(video_id, max_height=max_height)
                 
                 playback_session_id = None
                 is_hls = False
@@ -434,7 +419,7 @@ class MercadoPlayAddon:
                     li.setProperty('inputstream.adaptive.manifest_type', 'hls')
                 else:
                     li.setMimeType('application/dash+xml')
-                    li.setProperty('inputstream.adaptive.max_video_resolution', '480')
+                    # El máximo real lo decide el CDM/Widevine; no forzamos un tope artificial.
 
                 li.setContentLookup(False)
                 xbmc.log(f"[REPRODUCCIÓN] Iniciando reproducción de video ID {video_id} con URL: {stream_url}", xbmc.LOGINFO)
@@ -480,9 +465,9 @@ class MercadoPlayAddon:
                 self.kodi.resolve_url(False, self.kodi.create_list_item())
 
     def list_subcategories(self, main_category):
-        subcategories = SUBCATEGORIES.get(main_category, [])
-        for label, filter_value in subcategories:
-            url = self.kodi.build_url({'action': 'list_content', 'category': filter_value})
+        grupos = CATEGORIA_GRUPOS.get(main_category, [])
+        for label, group_id in grupos:
+            url = self.kodi.build_url({'action': 'list_content', 'category': group_id})
             li = self.kodi.create_list_item(label)
             self.kodi.add_directory_item(url, li, is_folder=True)
         self.kodi.end_directory()

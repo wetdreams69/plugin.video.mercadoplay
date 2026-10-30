@@ -18,5 +18,11 @@
                  type="bool"
                  label="32007"
                  default="true"/>
+    <setting id="max_resolution"
+             type="select"
+             label="32008"
+             lvalues="480|720|1080"
+             default="720"/>
+
     </category>
 </settings>

@@ -4,7 +4,6 @@ import xbmcaddon
 class Categoria(Enum):
     PELICULAS = "peliculas"
     SERIES = "series"
-    INFANTIL = "infantil"
 
 addon = xbmcaddon.Addon()
 country = addon.getSetting('country')
@@ -16,32 +15,38 @@ else:
 
 REFERER_URL = f"{BASE_URL}/"
 API_URL = f"{BASE_URL}/api/"
-USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36'
 
-SUBCATEGORIES = {
+# Grupos del nuevo API /api/groups/{seccion}
+# Cada grupo es una colección de contenido con items de tipo MOVIE o SHOW
+GRUPOS = {
     "peliculas": [
-        ("Todas", "peliculas"),
-        ("Destacados", "peliculas/destacados"),
-        ("Comedia", "peliculas/comedia"),
-        ("Acción", "peliculas/accion"),
-        ("Ciencia Ficción", "peliculas/ciencia-ficcion"),
-        ("Drama", "peliculas/drama"),
-        ("Terror", "peliculas/terror"),
-        ("Aventura", "peliculas/aventura"),
-        ("Familia", "peliculas/familia"),
-        ("Romance", "peliculas/romance"),
-        ("Documental", "peliculas/documental"),
-        ("Crimen", "peliculas/crimen"),
+        ("Destacados", "oscars"),
+        ("Nuevos", "new-in-mercado-play"),
+        ("Top 10 Películas", "top-10-movie"),
+        ("Acción", "genre-x-movie-action"),
+        ("Aventura", "genre-x-movie-adventure"),
+        ("Comedia", "genre-x-movie-comedy"),
+        ("Crimen", "genre-x-movie-crime"),
+        ("Drama", "genre-x-movie-drama"),
+        ("Fantasía", "genre-x-movie-fantasy"),
+        ("Romance", "genre-x-movie-romance"),
+        ("Ciencia Ficción", "genre-x-movie-science-fiction"),
+        ("Terror", "genre-x-movie-terror"),
+        ("Clásicos", "classics-movie"),
+        ("Para la familia", "for-the-family-movie"),
     ],
     "series": [
-        ("Todas", "series"),
-        ("Destacados", "series/destacados"),
-        ("Anime", "series/anime"),
-        ("Drama", "series/drama"),
-        ("Acción & Aventura", "series/accion_aventura"),
-        ("Más Géneros", "series/mas_genero"),
-        ("Comedia", "series/comedia"),
-        ("Novelas Latinas", "series/novelas_latinas"),
-        ("Pasar el rato", "series/pasar_el_rato"),
-    ]
+        ("Top 10 Series", "top-10-show"),
+        ("Acción", "genre-x-show-action"),
+        ("Comedia", "genre-x-show-comedy"),
+        ("Drama", "genre-x-show-drama"),
+        ("Para pasar el rato", "pass-the-time-show"),
+    ],
+}
+
+# Mapeo de categoría principal a lista de (label, groupId)
+CATEGORIA_GRUPOS = {
+    "peliculas": GRUPOS["peliculas"],
+    "series": GRUPOS["series"],
 }
