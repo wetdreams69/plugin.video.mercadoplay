@@ -39,7 +39,7 @@ You can enable or disable automatic ad skipping in the addon settings. When enab
 
 ## Changelog
 
-### v1.4.0
+### v1.4.1
 - **New Feature**: Integration with `script.module.adskipper` for automatic ad skipping.
 - **New Feature**: Added setting flag to enable/disable AdSkipper.
 - **Fix**: Improved MPEG-DASH handshake for SSAI streams.
